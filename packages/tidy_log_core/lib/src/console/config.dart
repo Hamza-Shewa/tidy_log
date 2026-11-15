@@ -37,6 +37,9 @@ const quietTags = <String>[
   'libc',
   'DefaultDispatch',
   'InteractionJankMonitor',
+  'FlutterActivityAndFragmentDelegate',
+  'ProfileInstaller',
+  'DesktopExperienceFlags',
 ];
 
 /// Message patterns hidden by the `quiet` preset, whatever the tag.
@@ -45,6 +48,10 @@ const quietMessages = <String>[
   r'^Compiler allocated',
   r'A resource failed to call ZipFile\.close',
   r'Access denied finding property',
+  r'^Beginning load of flutter',
+  r'was loaded normally!$',
+  r'^Width is zero',
+  r'GC freed \d+',
 ];
 
 /// A user rule from `tidy_log.yaml`: Dart lines matching [pattern] get [label].

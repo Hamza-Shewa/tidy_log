@@ -16,6 +16,24 @@ void main() {
     expect(shows(quiet, 'D/FlutterJNI(1): Sending viewport metrics to the engine.'), isTrue);
   });
 
+  test('quiet preset hides start-up chatter but keeps performance and engine lines', () {
+    final quiet = NoiseFilter(TidyConfig());
+    // Captured from sample_app on an API 37 emulator.
+    for (final line in [
+      'I/FlutterActivityAndFragmentDelegate(1): If you are attempting to set --enable-dart-profiling via Intent extras',
+      'D/FlutterJNI(1): Beginning load of flutter...',
+      'D/FlutterJNI(1): flutter (null) was loaded normally!',
+      'D/FlutterRenderer(1): Width is zero. 0,0',
+      'D/ProfileInstaller(1): Installing profile for dev.tidylog.tidy_log_sample',
+      'D/DesktopExperienceFlags(1): Toggle override initialized to: false',
+      'I/tidy_log_sample(1): Background concurrent mark compact GC freed 2065KB AllocSpace bytes, 49% free',
+    ]) {
+      expect(shows(quiet, line), isFalse, reason: line);
+    }
+    expect(shows(quiet, 'I/Choreographer(1): Skipped 84 frames!  The application may be doing too much work on its main thread.'), isTrue);
+    expect(shows(quiet, 'I/flutter(1): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).'), isTrue);
+  });
+
   test('all preset shows the same chatter', () {
     final all = NoiseFilter(TidyConfig(preset: Preset.all));
     expect(shows(all, 'D/WindowOnBackDispatcher(1): setTopOnBackInvokedCallback'), isTrue);
