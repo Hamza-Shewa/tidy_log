@@ -9,7 +9,9 @@
 /// ```
 library;
 
-export 'package:tidy_log_core/tidy_log_core.dart' show Level;
+export 'package:tidy_log_core/tidy_log_core.dart' show HttpOutcome, Level;
 
 export 'src/dio_interceptor.dart' show TidyDioInterceptor;
+export 'src/error_text.dart' show ErrorText;
+export 'src/http_rules.dart' show HttpBodies, ResponseRule, RuleVerdict;
 export 'src/tidy_log.dart' show TidyLog;

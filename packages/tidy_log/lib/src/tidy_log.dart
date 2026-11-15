@@ -3,6 +3,7 @@ import 'package:tidy_log_core/tidy_log_core.dart';
 
 import 'error_text.dart';
 import 'flutter_error_formatter.dart';
+import 'http_rules.dart';
 
 /// Prints one already-formatted line. Defaults to [debugPrint].
 typedef LinePrinter = void Function(String line);
@@ -20,6 +21,8 @@ abstract final class TidyLog {
   static LinePrinter _printer = _defaultPrinter;
   static var _redactor = Redactor(TidyConfig.defaultRedactKeys);
   static FlutterErrorFormatter? _errorFormatter;
+  static var _httpBodies = HttpBodies.always;
+  static var _httpRules = const <ResponseRule>[];
 
   /// Sets up the logger. Call it once, before [installErrorHooks].
   ///
@@ -29,6 +32,10 @@ abstract final class TidyLog {
   /// [errorText] gives your own error types a short one-line description
   /// (return null to fall back). DioException and PlatformException already
   /// have one.
+  ///
+  /// [httpBodies] decides which HTTP calls print their body and response
+  /// (default: all of them). [httpRules] classify responses by their body for
+  /// every [TidyDioInterceptor] that has no rules of its own.
   static void configure({
     List<String>? projectPackages,
     Level? minLevel,
@@ -37,6 +44,8 @@ abstract final class TidyLog {
     List<String>? redactKeys,
     LinePrinter? printer,
     ErrorText? errorText,
+    HttpBodies? httpBodies,
+    List<ResponseRule>? httpRules,
   }) {
     if (projectPackages != null && projectPackages.isNotEmpty) _projectPackages = List.unmodifiable(projectPackages);
     if (minLevel != null) _minLevel = minLevel;
@@ -45,6 +54,8 @@ abstract final class TidyLog {
     if (redactKeys != null) _redactor = Redactor(redactKeys);
     if (printer != null) _printer = printer;
     if (errorText != null) customErrorText = errorText;
+    if (httpBodies != null) _httpBodies = httpBodies;
+    if (httpRules != null) _httpRules = List.unmodifiable(httpRules);
     _errorFormatter = null;
   }
 
@@ -58,10 +69,14 @@ abstract final class TidyLog {
     _printer = _defaultPrinter;
     _redactor = Redactor(TidyConfig.defaultRedactKeys);
     customErrorText = null;
+    _httpBodies = HttpBodies.always;
+    _httpRules = const [];
     _errorFormatter = null;
   }
 
   static List<String> get projectPackages => _projectPackages;
+  static HttpBodies get httpBodies => _httpBodies;
+  static List<ResponseRule> get httpRules => _httpRules;
 
   static void v(Object? message, {String? tag, Object? error, StackTrace? stackTrace}) =>
       log(Level.verbose, message, tag: tag, error: error, stackTrace: stackTrace);
@@ -95,9 +110,10 @@ abstract final class TidyLog {
   }
 
   /// Prints a prepared [Entry]. Used by the error hooks and the Dio
-  /// interceptor; most code calls [log] instead.
-  static void emit(Entry entry) {
-    if (!_enabled) return;
+  /// interceptor; most code calls [log] instead. With a [level], entries
+  /// below `minLevel` are dropped.
+  static void emit(Entry entry, {Level? level}) {
+    if (!_enabled || (level != null && level.index < _minLevel.index)) return;
     final renderer = Renderer(color: _color, includeSource: true);
     for (final line in renderer.render(entry)) {
       _printer(_color ? '\x1B[0m$line' : line);
