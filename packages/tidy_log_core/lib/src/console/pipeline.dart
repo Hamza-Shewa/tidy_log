@@ -1,4 +1,5 @@
 import '../entry.dart';
+import '../flutter_messages.dart';
 import '../level.dart';
 import '../renderer.dart' show startsWithAnsi;
 import '../stack_trimmer.dart';
@@ -104,7 +105,14 @@ final class ConsolePipeline {
     if (startsWithAnsi(line)) return Entry.raw(line);
     final again = _again.firstMatch(line);
     if (again != null) {
-      return Entry(head: [Level.error.labelSpan, Span(again[1]!, Tone.error)], source: 'thrown again');
+      final message = stripRenderIds(again[1]!);
+      return Entry(
+        head: [Level.error.labelSpan, Span(message, Tone.error)],
+        source: 'thrown again',
+        // Follow-on layout errors name a different render object each time;
+        // fold them into the first one as "↳ +N similar".
+        similarKey: isFollowOnError(message) ? 'follow-on layout error' : null,
+      );
     }
     final restart = _restarted.firstMatch(line);
     if (restart != null) {

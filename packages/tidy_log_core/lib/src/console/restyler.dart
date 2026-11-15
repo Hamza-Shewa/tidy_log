@@ -1,5 +1,6 @@
 import '../entry.dart';
 import '../http_entry.dart';
+import '../java_stack.dart';
 import '../level.dart';
 import '../record_formatter.dart';
 import '../stack_trimmer.dart';
@@ -8,16 +9,9 @@ import 'config.dart';
 
 final _dartFrame = RegExp(r'^#\d+\s');
 final _javaFrame = RegExp(r'^\s*at (.+)$');
-final _exception = RegExp(r'^\s*(?:([A-Za-z_$][\w$]*\.)+)?([A-Z][\w$]*(?:Exception|Error|Throwable))\b(.*)$');
 final _nav = RegExp(r'^from (\S+) (Pushed|Popped|Replaced|Removed) route: (\S+)$');
 final _engine = RegExp(r'^\[(IMPORTANT|ERROR|WARNING|INFO|VERBOSE):[^\]]*\]\s*(.*)$');
 final _errorWords = RegExp(r'error|exception|fail', caseSensitive: false);
-
-/// Java and Android frames that are rarely where the problem is.
-const _javaSdkPrefixes = [
-  'android.', 'androidx.', 'java.', 'javax.', 'kotlin.', 'kotlinx.', 'com.android.', 'dalvik.', 'libcore.', //
-  'sun.', 'io.flutter.', 'com.google.android.', 'com.google.crypto.',
-];
 
 /// The blank label used for plain Dart lines, so messages line up with `ERR `.
 const blankLabel = Span('    ');
@@ -130,38 +124,20 @@ final class Restyler {
   Entry _javaTrace(Block block, String? source) {
     final level = block.first.level;
     final header = block.messages.first.trim();
-    final frames = [for (final l in block.messages) ?_javaFrame.firstMatch(l)?[1]];
-    final headerIsException = _exception.hasMatch(header);
-    final exception = headerIsException
-        ? null
-        : block.messages.skip(1).map((l) => l.trim()).where(_exception.hasMatch).firstOrNull;
-    final causes = [
-      for (final l in block.messages)
-        if (l.trim().startsWith('Caused by: ')) _shortException(l.trim().substring('Caused by: '.length)),
-    ];
-    final useful = frames.firstWhere((f) => !_javaSdkPrefixes.any(f.startsWith), orElse: () => frames.first);
-    final note = [
-      if (frames.length > 1) '… ${framesHidden(frames.length - 1)}',
-      if (causes.isNotEmpty) 'caused by ${causes.last}',
-    ].join(' · ');
+    final stack = parseJavaStack(block.messages)!;
+    // The header is often a message ("Failed to handle method call") with
+    // the exception on the next line.
+    final exception = isJavaException(header) ? null : stack.exception;
+    final note = stack.note;
     return Entry(
       head: [level.labelSpan, Span(header, level.messageTone)],
       source: source,
       details: [
-        if (exception != null) [Span(_shortException(exception), level.messageTone)],
-        [Span('at $useful', level.messageTone)],
+        if (exception != null) [Span(exception, level.messageTone)],
+        [Span('at ${stack.frame}', level.messageTone)],
         if (note.isNotEmpty) [Span('┊ $note', Tone.dim)],
       ],
     );
-  }
-
-  /// `java.lang.SecurityException: x` → `SecurityException: x`.
-  static String _shortException(String text) {
-    final m = _exception.firstMatch(text);
-    if (m == null) return text;
-    final rest = m[3]!.trim();
-    final message = rest.endsWith(':') ? rest.substring(0, rest.length - 1) : rest;
-    return '${m[2]}$message';
   }
 
   Entry? _dio(List<String> lines) {

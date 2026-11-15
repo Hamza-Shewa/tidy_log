@@ -60,7 +60,7 @@ void main() {
       error: const SocketException('Connection refused', osError: OSError('Connection refused', 111)),
     ));
     await expectLater(client.get<Object?>('/api/ping'), throwsA(isA<DioException>()));
-    expect(printed.single, 'GET /api/ping  10.0.0.1:4013  ERR SocketException: Connection refused  1,003 ms · 15:21:09');
+    expect(printed.single, 'GET /api/ping  10.0.0.1:4013  ERR connection refused  1,003 ms · 15:21:09');
   });
 
   test('logBodies: false keeps bodies out of the log', () async {

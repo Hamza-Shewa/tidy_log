@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:tidy_log_core/tidy_log_core.dart';
 
+import 'error_text.dart';
 import 'tidy_log.dart';
 
 const _startKey = 'tidy_log.start';
@@ -37,7 +38,7 @@ final class TidyDioInterceptor extends Interceptor {
     if (response != null) {
       _log(err.requestOptions, status: response.statusCode, response: response.data);
     } else {
-      _log(err.requestOptions, error: _describe(err));
+      _log(err.requestOptions, error: dioReason(err));
     }
     handler.next(err);
   }
@@ -56,12 +57,6 @@ final class TidyDioInterceptor extends Interceptor {
       response: logBodies && response != null ? TidyLog.redact('$response') : null,
     );
     TidyLog.emit(entry);
-  }
-
-  static String _describe(DioException err) {
-    final inner = err.error;
-    final text = inner != null ? '$inner' : (err.message ?? err.type.name);
-    return text.split(' (OS Error').first;
   }
 
   static String _hms(DateTime t) => [t.hour, t.minute, t.second].map((v) => '$v'.padLeft(2, '0')).join(':');

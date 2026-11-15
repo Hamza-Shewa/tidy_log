@@ -21,6 +21,23 @@ void main() {
     expect(out, hasLength(2));
   });
 
+  test('follow-on layout errors after the root error fold into one line, without render ids', () {
+    final out = squash(clean([
+      'Another exception was thrown: Vertical viewport was given unbounded height.',
+      'Another exception was thrown: RenderBox was not laid out: RenderViewport#0c59b NEEDS-LAYOUT NEEDS-PAINT',
+      'Another exception was thrown: RenderBox was not laid out: RenderIgnorePointer#4907d relayoutBoundary=up10 NEEDS-PAINT',
+      'Another exception was thrown: RenderBox was not laid out: RenderFlex#96b54 relayoutBoundary=up1 NEEDS-PAINT',
+      'I/flutter (1): >>> next',
+    ]));
+    expect(out, [
+      'ERR Vertical viewport was given unbounded height.  · thrown again',
+      'ERR RenderBox was not laid out: RenderViewport  · thrown again',
+      '    ↳ +2 similar',
+      '──────── app started · pid 1 ────────',
+      '    >>> next',
+    ]);
+  });
+
   test('folds a Java trace to the exception, the first non-SDK frame and a summary', () {
     final out = clean([
       'W/FlutterDefender(9): Screen-capture callback registration failed.',

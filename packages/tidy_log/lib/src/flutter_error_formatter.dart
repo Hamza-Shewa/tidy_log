@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:stack_trace/stack_trace.dart';
 import 'package:tidy_log_core/tidy_log_core.dart';
 
+import 'error_text.dart';
 import 'tidy_log.dart';
 
 final _sourceLocation = RegExp(r'((?:package:|file://)\S+?\.dart):(\d+):(\d+)');
@@ -11,14 +14,36 @@ final _sourceLocation = RegExp(r'((?:package:|file://)\S+?\.dart):(\d+):(\d+)');
 /// The first time a message is seen it prints the message, a few lines of
 /// explanation and where it happened. The same message again in a row prints
 /// one short `thrown again` line, which the wrapper then counts.
+///
+/// Errors that Flutter reports only as a side effect of the one before (the
+/// dozen `RenderBox was not laid out` after an unbounded-height error) are
+/// counted while they keep arriving within [followOnWindow] of each other,
+/// and summed up in one dim line.
 final class FlutterErrorFormatter {
+  FlutterErrorFormatter({this.followOnWindow = const Duration(milliseconds: 500)});
+
+  final Duration followOnWindow;
+
   String? _last;
+  Timer? _window;
+  int _followOns = 0;
+  String? _followOnKind;
 
   void present(FlutterErrorDetails details) {
-    final lines = details.exceptionAsString().split('\n').where((l) => l.trim().isNotEmpty).toList();
-    final message = lines.isEmpty ? 'Flutter error' : lines.first.trim();
-    final source = details.library;
+    final described = describeError(details.exception);
+    final lines = described ?? details.exceptionAsString().split('\n').where((l) => l.trim().isNotEmpty).toList();
+    final message = stripRenderIds(lines.isEmpty ? 'Flutter error' : lines.first.trim());
 
+    if (_window != null && isFollowOnError(message)) {
+      _followOns++;
+      _followOnKind ??= followOnKind(message);
+      _openWindow();
+      return;
+    }
+    _flushFollowOns();
+    _openWindow();
+
+    final source = details.library;
     if (message == _last) {
       TidyLog.emit(Entry(head: [Level.error.labelSpan, Span(message, Tone.error)], source: 'thrown again'));
       return;
@@ -44,9 +69,27 @@ final class FlutterErrorFormatter {
         trimmed: stack,
         notes: [
           if (context != null && context.isNotEmpty) context,
-          for (final line in lines.skip(1).take(3)) TidyLog.redact(line.trim()),
+          for (final line in lines.skip(1).take(3)) TidyLog.redact(stripRenderIds(line.trim())),
         ],
       ),
+    );
+  }
+
+  void _openWindow() {
+    _window?.cancel();
+    _window = Timer(followOnWindow, _flushFollowOns);
+  }
+
+  void _flushFollowOns() {
+    _window?.cancel();
+    _window = null;
+    final count = _followOns;
+    if (count == 0) return;
+    final kind = _followOnKind;
+    _followOns = 0;
+    _followOnKind = null;
+    TidyLog.emit(
+      Entry(head: [Span('    ┊ +$count follow-on ${count == 1 ? 'error' : 'errors'} hidden ($kind)', Tone.dim)]),
     );
   }
 

@@ -6,6 +6,9 @@ import 'stack_trimmer.dart';
 
 /// Builds the console entry for one log call or caught error.
 ///
+/// [errorText] replaces `error.toString()` on the error line, for errors
+/// whose own text is long or unhelpful (see the tidy_log describers).
+///
 /// Layout:
 /// ```
 /// ERR Bad state: no user                                    · HomePage
@@ -22,9 +25,10 @@ Entry formatRecord({
   StackTrace? stackTrace,
   TrimmedStack? trimmed,
   List<String> notes = const [],
+  String? errorText,
 }) {
   final lines = message.split('\n');
-  final errorText = error?.toString();
+  errorText ??= error?.toString();
   final stack =
       trimmed ??
       (stackTrace == null || stackTrace == StackTrace.empty

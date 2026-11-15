@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:tidy_log_core/tidy_log_core.dart';
 
+import 'error_text.dart';
 import 'flutter_error_formatter.dart';
 
 /// Prints one already-formatted line. Defaults to [debugPrint].
@@ -24,6 +25,10 @@ abstract final class TidyLog {
   ///
   /// [projectPackages] lists your own packages; the first one is the app and
   /// its paths print as `lib/…`. Frames from these packages lead stack traces.
+  ///
+  /// [errorText] gives your own error types a short one-line description
+  /// (return null to fall back). DioException and PlatformException already
+  /// have one.
   static void configure({
     List<String>? projectPackages,
     Level? minLevel,
@@ -31,6 +36,7 @@ abstract final class TidyLog {
     bool? color,
     List<String>? redactKeys,
     LinePrinter? printer,
+    ErrorText? errorText,
   }) {
     if (projectPackages != null && projectPackages.isNotEmpty) _projectPackages = List.unmodifiable(projectPackages);
     if (minLevel != null) _minLevel = minLevel;
@@ -38,6 +44,7 @@ abstract final class TidyLog {
     if (color != null) _color = color;
     if (redactKeys != null) _redactor = Redactor(redactKeys);
     if (printer != null) _printer = printer;
+    if (errorText != null) customErrorText = errorText;
     _errorFormatter = null;
   }
 
@@ -50,6 +57,7 @@ abstract final class TidyLog {
     _color = true;
     _printer = _defaultPrinter;
     _redactor = Redactor(TidyConfig.defaultRedactKeys);
+    customErrorText = null;
     _errorFormatter = null;
   }
 
@@ -68,14 +76,20 @@ abstract final class TidyLog {
 
   static void log(Level level, Object? message, {String? tag, Object? error, StackTrace? stackTrace}) {
     if (!_enabled || level.index < _minLevel.index) return;
+    // An error passed as the message (the uncaught-error hook does this)
+    // gets the same short description as one passed as `error`.
+    final asMessage = message is String || message == null ? null : describeError(message);
+    final described = error == null ? null : describeError(error);
     emit(
       formatRecord(
         level: level,
-        message: _redactor.apply('$message'),
+        message: _redactor.apply(asMessage?.first ?? '$message'),
         projectPackages: _projectPackages,
         tag: tag,
         error: error,
+        errorText: error == null ? null : _redactor.apply(described?.first ?? '$error'),
         stackTrace: stackTrace,
+        notes: [for (final note in [...?asMessage?.skip(1), ...?described?.skip(1)]) _redactor.apply(note)],
       ),
     );
   }
