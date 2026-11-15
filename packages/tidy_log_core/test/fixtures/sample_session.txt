@@ -1,0 +1,138 @@
+D/FlutterDefenderGuard(31131): Forwarding launcher to com.example.wallet.MainActivity.
+D/FlutterJNI(31131): Beginning load of flutter...
+D/FlutterJNI(31131): flutter (null) was loaded normally!
+I/flutter (31131): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/AudioSystem(31131): onNewService: media.audio_policy service obtained 0xb4007ef47e0c8fb0
+D/FlutterGeolocator(31131): Attaching Geolocator to activity
+I/com.example.wallet(31131): hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=37) using reflection: allowed
+I/com.example.wallet(31131): hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=37) using reflection: allowed
+D/WindowOnBackDispatcher(31131): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@506af09
+W/UiContextUtils(31131): Requested context is a non-UI Context. Creating a UI-Context with display: 0. Context: Context=android.app.Application@a841205, of which baseContext=android.app.ContextImpl@925d41a
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+Syncing files to device sdk gphone16k arm64...                     192ms
+
+E/com.example.wallet(31131): hiddenapi: Accessing hidden method Landroid/app/contentsafety/ContentSafetyManager;->isContentSafetyEnabled()Z (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~CRq30AVUvcJApatZIlD8mg==/com.google.android.webview-neFSPVFO-FVFYkevS6Sb5A==/base.apk (domain=app, TargetSdkVersion=37) using linking: denied
+E/com.example.wallet(31131): hiddenapi: Accessing hidden method Landroid/webkit/WebViewDelegate;->isNativeWebViewZygoteEnabled()Z (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~CRq30AVUvcJApatZIlD8mg==/com.google.android.webview-neFSPVFO-FVFYkevS6Sb5A==/base.apk (domain=app, TargetSdkVersion=37) using linking: denied
+E/com.example.wallet(31131): hiddenapi: Accessing hidden method Landroid/app/contentsafety/ClassifiableContent$Builder;-><init>(Landroid/content/LocusId;Ljava/lang/String;)V (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~CRq30AVUvcJApatZIlD8mg==/com.google.android.webview-neFSPVFO-FVFYkevS6Sb5A==/base.apk (domain=app, TargetSdkVersion=37) using linking: denied
+I/flutter (31131): ar_LY
+I/cr_LibraryLoader(31131): Successfully loaded native library
+I/flutter (31131): from null Pushed route: /root
+W/DefaultDispatch(31131): type=1400 audit(0.0:111): avc:  denied  { read } for  name="devices" dev="proc" ino=4026531976 scontext=u:r:untrusted_app:s0:c244,c256,c512,c768 tcontext=u:object_r:proc:s0 tclass=file permissive=0 app=com.example.wallet
+I/flutter (31131): from /root Pushed route: /login
+D/InsetsController(31131): hide(ime())
+I/ImeTracker(31131): com.example.wallet:d4c29007: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+D/FlutterJNI(31131): Sending viewport metrics to the engine.
+I/flutter (31131): from /login Pushed route: /loginSelectAccountPage
+I/flutter (31131): unhandled element <foreignObject/>; Picture key: Svg loader
+I/flutter (31131): from /loginSelectAccountPage Popped route: null
+I/flutter (31131): from null Pushed route: /myAccountMenu
+
+Performing hot restart...
+Restarted application in 1,603ms.
+I/flutter (31131): from null Pushed route: /settingsMenu
+
+══╡ EXCEPTION CAUGHT BY FLUTTER FRAMEWORK ╞═════════════════════════════════════════════════════════
+The following assertion was thrown:
+ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its
+background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those
+effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the
+intermediate DecoratedBox.
+
+ListTile:
+  ListTile(selectedColor: Color(alpha: 1.0000, red: 0.0118, green: 0.8549, blue: 0.7765, colorSpace: ColorSpace.sRGB), contentPadding: EdgeInsets(10.0, 0.0, 10.0, 0.0), onTap: Closure: () => void)
+DecoratedBox:
+  DecoratedBox(bg: BoxDecoration(color: Color(alpha: 0.0784, red: 0.1765, green: 0.4471, blue: 0.7216, colorSpace: ColorSpace.sRGB), borderRadius: BorderRadius.circular(7.0)))
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Another exception was thrown: ListTile background color or ink splashes may be invisible.
+Another exception was thrown: ListTile background color or ink splashes may be invisible.
+Another exception was thrown: ListTile background color or ink splashes may be invisible.
+Another exception was thrown: ListTile background color or ink splashes may be invisible.
+I/FlutterActivityAndFragmentDelegate(31800): If you are attempting to set --enable-dart-profiling via Intent extras to launch a Flutter component outside of using the Flutter CLI, note that support for setting engine flags on Android via Intent will soon be dropped; see https://github.com/flutter/flutter/issues/180686 for more information on this breaking change.
+D/FlutterJNI(31800): Beginning load of flutter...
+W/FlutterDefender(31800): Screen-capture callback registration failed; continuing without callback.
+W/FlutterDefender(31800): java.lang.SecurityException: Permission Denial: registerScreenCaptureObserver from pid=31800, uid=10239 requires android.permission.DETECT_SCREEN_CAPTURE
+W/FlutterDefender(31800):       at android.os.Parcel.createExceptionOrNull(Parcel.java:3367)
+W/FlutterDefender(31800):       at android.os.Parcel.createException(Parcel.java:3351)
+W/FlutterDefender(31800):       at android.os.Parcel.readException(Parcel.java:3334)
+W/FlutterDefender(31800):       at android.app.IActivityTaskManager$Stub$Proxy.registerScreenCaptureObserver(IActivityTaskManager.java:4015)
+W/FlutterDefender(31800):       at android.app.Activity.registerScreenCaptureCallback(Activity.java:10246)
+W/FlutterDefender(31800):       at com.example.defender.FlutterDefenderPlugin.registerScreenCaptureCallback(FlutterDefenderPlugin.kt:308)
+W/FlutterDefender(31800):       at com.example.defender.FlutterDefenderPlugin.rebindActivityHooks(FlutterDefenderPlugin.kt:230)
+W/FlutterDefender(31800):       at io.flutter.embedding.engine.FlutterEngineConnectionRegistry.add(FlutterEngineConnectionRegistry.java:159)
+W/FlutterDefender(31800):       at android.app.ActivityThread.main(ActivityThread.java:9569)
+W/FlutterDefender(31800):       at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:918)
+W/FlutterDefender(31800): Caused by: android.os.RemoteException: Remote stack trace:
+W/FlutterDefender(31800):       at com.android.server.wm.Session$$ExternalSyntheticBUOutline1.m(R8$$SyntheticClass:0)
+W/FlutterDefender(31800):       at com.android.server.am.ActivityManagerService.enforceCallingPermission(ActivityManagerService.java:7239)
+W/FlutterDefender(31800):
+D/FlutterGeolocator(31800): Attaching Geolocator to activity
+I/flutter (31800): unhandled element <style/>; Picture key: Svg loader
+W/System  (31131): A resource failed to call ZipFile.close.
+E/FlutterSecureStorage(31800): EncryptedSharedPreferences initialization failed. Falling back to custom ciphers.
+E/FlutterSecureStorage(31800): java.lang.SecurityException: Could not decrypt key. decryption failed
+E/FlutterSecureStorage(31800):  at com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences.decryptKey(EncryptedSharedPreferences.java:561)
+E/FlutterSecureStorage(31800):  at com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences.getAll(EncryptedSharedPreferences.java:378)
+E/FlutterSecureStorage(31800):  at com.it_nomads.fluttersecurestorage.FlutterSecureStorage.hasDataInEncryptedSharedPreferences(FlutterSecureStorage.java:1380)
+E/FlutterSecureStorage(31800):  at android.os.Handler.handleCallback(Handler.java:1082)
+E/FlutterSecureStorage(31800):  at android.os.HandlerThread.run(HandlerThread.java:140)
+E/FlutterSecureStorage(31800): Caused by: java.security.GeneralSecurityException: decryption failed
+E/FlutterSecureStorage(31800):  at com.google.crypto.tink.daead.internal.WrappedDeterministicAead$WrappedDeterministicAeadImpl.decryptDeterministically(WrappedDeterministicAead.java:104)
+E/FlutterSecureStorage(31800):  at com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences.decryptKey(EncryptedSharedPreferences.java:552)
+E/FlutterSecureStorage(31800):  ... 15 more
+W/System.err(31131): java.net.SocketException: Unresolved address
+W/System.err(31131):    at java.net.DatagramSocket.connect(DatagramSocket.java:518)
+W/System.err(31131):    at com.vendor.sdk.internal.createStartIntent.setAnalyses(:82)
+W/System.err(31131):    at com.vendor.sdk.internal.createStartIntent.getMediaSet(:115)
+W/System.err(31131):    at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+W/System.err(31131): java.net.SocketException: Unresolved address
+W/System.err(31131):    at java.net.DatagramSocket.connect(DatagramSocket.java:518)
+W/System.err(31131):    at com.vendor.sdk.internal.createStartIntent.setAnalyses(:82)
+W/System.err(31131):    at com.vendor.sdk.internal.createStartIntent.getMediaSet(:115)
+W/System.err(31131):    at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+I/flutter (31800): spki_pinning_mismatch: host=api.example.test:20883, status=rejected, reason=TLS/SPKI validation preflight failed for "api.example.test": HandshakeException: Handshake error in client (OS Error:
+I/flutter (31800): 	TLSV1_ALERT_UNRECOGNIZED_NAME(tls_record.cc:489))
+I/flutter (32287): ┌------------------------------------------------------------------------------
+I/flutter (32287): | [DIO] Request: POST http://10.0.2.2:4013/api/Auth/Signin
+I/flutter (32287): | Time: 2026-11-15 15:21:09.634373
+I/flutter (32287): | {userId: 100001, pin: 11112222, authUserType: 0}
+I/flutter (32287): | Headers:
+I/flutter (32287): | authorization: | user-agent: | content-type: application/json
+I/flutter (32287): ├------------------------------------------------------------------------------
+I/flutter (32287): | [DIO] Error: SocketException: Connection refused (OS Error: Connection refused, errno = 111), address = 10.0.2.2, port = 60350: null
+I/flutter (32287): | [DIO] Duration: 74991ms
+I/flutter (32287): └------------------------------------------------------------------------------
+I/flutter (32287): ┌------------------------------------------------------------------------------
+I/flutter (32287): | [DIO] Request: POST http://10.0.2.2:4013/api/Auth/OpenSession
+I/flutter (32287): | Time: 2026-11-15 15:22:58.202504
+I/flutter (32287): | {AppId: 0, SignToken: DEVICE01, DeviceID: DEVICE01, NotificationsToken: DEVICE01, DeviceType: 0, ProductType: 300, DeviceInfo: Google sdk_gphone16k_arm64_OS:16064790, Version: 3.3.0}
+I/flutter (32287): | Headers:
+I/flutter (32287): | authorization: | user-agent: | content-type: application/x-www-form-urlencoded
+I/flutter (32287): ├------------------------------------------------------------------------------
+I/flutter (32287): | [DIO] Response [code 200]: {"type":2,"messages":["unvalid api sign .....en-US"],"traceId":"e9f395d6-2cb9-43ab-bc09-312db31de4d2"}
+I/flutter (32287): | [DIO] Duration: 1010ms
+I/flutter (32287): └------------------------------------------------------------------------------
+I/flutter (32287): Error refreshing session: unvalid api sign .....en-US
+I/flutter (32287): #0      HandleException.handleException (package:core_kit/infrastructure/network/httpHandler/handle_exception.dart:42:5)
+I/flutter (32287): #1      NetworkServiceImpl.requestService (package:core_kit/infrastructure/network/httpClient/network_service_impl.dart:97:14)
+I/flutter (32287): <asynchronous suspension>
+I/flutter (32287): #2      OpenSessionRepository.refreshOpenSession (package:core_kit/data/repositories/openSession/open_session_repository.dart:37:24)
+I/flutter (32287): <asynchronous suspension>
+I/flutter (32287): #3      OpenSessionBloc.openUserSession (package:core_kit/domain/blocs/openSession/open_session_bloc.dart:53:7)
+I/flutter (32287): <asynchronous suspension>
+D/FlutterJNI(32287): Sending viewport metrics to the engine.
+D/FlutterJNI(32287): Sending viewport metrics to the engine.
+D/FlutterJNI(32287): Sending viewport metrics to the engine.

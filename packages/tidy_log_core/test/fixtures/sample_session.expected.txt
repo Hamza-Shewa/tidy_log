@@ -1,0 +1,64 @@
+──────── app started · pid 31131 ────────
+DBG Forwarding launcher to com.example.wallet.MainActivity.
+DBG Beginning load of flutter...
+DBG flutter (null) was loaded normally!
+INF Using the Impeller rendering backend (OpenGLES).
+DBG Attaching Geolocator to activity
+INF hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app, TargetSdkVersion=37) using reflection: allowed
+    ↳ +1 similar
+DBG Sending viewport metrics to the engine.
+Syncing files to device sdk gphone16k arm64...                     192ms
+
+ERR hiddenapi: Accessing hidden method Landroid/app/contentsafety/ContentSafetyManager;->isContentSafetyEnabled()Z (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~CRq30AVUvcJApatZIlD8mg==/com.google.android.webview-neFSPVFO-FVFYkevS6Sb5A==/base.apk (domain=app, TargetSdkVersion=37) using linking: denied
+    ↳ +2 similar
+    ar_LY
+NAV null → /root
+NAV /root → /login
+DBG Sending viewport metrics to the engine.  ×12
+NAV /login → /loginSelectAccountPage
+    unhandled element <foreignObject/>; Picture key: Svg loader
+NAV back null → /loginSelectAccountPage
+NAV null → /myAccountMenu
+
+Performing hot restart...
+──────── hot restart · 1,603 ms ────────
+NAV null → /settingsMenu
+
+ERR ListTile background color or ink splashes may be invisible.
+    The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its
+    background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those
+    effects.
+    To fix this, wrap the ListTile in its own Material widget, or remove the background color from the
+    ┊ … 13 lines hidden
+
+ERR ListTile background color or ink splashes may be invisible.  ×4
+──────── app started · pid 31800 ────────
+INF If you are attempting to set --enable-dart-profiling via Intent extras to launch a Flutter component outside of using the Flutter CLI, note that support for setting engine flags on Android via Intent will soon be dropped; see https://github.com/flutter/flutter/issues/180686 for more information on this breaking change.
+DBG Beginning load of flutter...
+WRN Screen-capture callback registration failed; continuing without callback.
+    SecurityException: Permission Denial: registerScreenCaptureObserver from pid=31800, uid=10239 requires android.permission.DETECT_SCREEN_CAPTURE
+    at com.example.defender.FlutterDefenderPlugin.registerScreenCaptureCallback(FlutterDefenderPlugin.kt:308)
+    ┊ … 11 frames hidden · caused by RemoteException: Remote stack trace
+DBG Attaching Geolocator to activity
+    unhandled element <style/>; Picture key: Svg loader
+ERR EncryptedSharedPreferences initialization failed. Falling back to custom ciphers.
+    SecurityException: Could not decrypt key. decryption failed
+    at com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences.decryptKey(EncryptedSharedPreferences.java:561)
+    ┊ … 6 frames hidden · caused by GeneralSecurityException: decryption failed
+WRN java.net.SocketException: Unresolved address  ×2
+    at com.vendor.sdk.internal.createStartIntent.setAnalyses(:82)
+    ┊ … 3 frames hidden
+    spki_pinning_mismatch: host=api.example.test:20883, status=rejected, reason=TLS/SPKI validation preflight failed for "api.example.test": HandshakeException: Handshake error in client (OS Error:
+    TLSV1_ALERT_UNRECOGNIZED_NAME(tls_record.cc:489))
+──────── app started · pid 32287 ────────
+POST /api/Auth/Signin  10.0.2.2:4013  ERR SocketException: Connection refused  74,991 ms · 15:21:09
+    body  {userId: 100001, pin: ••••••••, authUserType: 0}
+POST /api/Auth/OpenSession  10.0.2.2:4013  200  1,010 ms · 15:22:58
+    body  {AppId: 0, SignToken: DEVICE01, DeviceID: DEVICE01, NotificationsToken: DEVICE01, DeviceType: 0, ProductType: 300, DeviceInfo: Google sdk_gphone16k_arm64_OS:16064790, Version: 3.3.0}
+    resp  {"type":2,"messages":["unvalid api sign .....en-US"],"traceId":"e9f395d6-2cb9-43ab-bc09-312db31de4d2"}
+ERR Error refreshing session: unvalid api sign .....en-US
+    at package:core_kit/infrastructure/network/httpHandler/handle_exception.dart:42:5  HandleException.handleException
+    ┊ package:core_kit/infrastructure/network/httpClient/network_service_impl.dart:97:14  NetworkServiceImpl.requestService
+    ┊ package:core_kit/data/repositories/openSession/open_session_repository.dart:37:24  OpenSessionRepository.refreshOpenSession
+    ┊ package:core_kit/domain/blocs/openSession/open_session_bloc.dart:53:7  OpenSessionBloc.openUserSession
+DBG Sending viewport metrics to the engine.  ×3
