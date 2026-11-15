@@ -104,14 +104,22 @@ abstract final class TidyLog {
   ///
   /// The previous [PlatformDispatcher.onError] handler is kept and decides
   /// whether an uncaught async error counts as handled.
-  static void installErrorHooks() {
+  ///
+  /// In debug runs the widget inspector replaces [FlutterError.presentError]
+  /// with its structured-error reporter as soon as the binding starts, and
+  /// the Flutter tool then prints `Another exception was thrown: …` without
+  /// a location for every error after the first. So the handler calls the
+  /// tidy formatter directly. Pass [keepStructuredErrors] to route errors
+  /// through `presentError` instead (IDE error links, DevTools' error list).
+  static void installErrorHooks({bool keepStructuredErrors = false}) {
     // Read onError first: Dart initialises it lazily from presentError, so
     // reading it after the assignment below would return our own presenter.
     final current = FlutterError.onError;
     final defaultPresenter = FlutterError.presentError;
-    FlutterError.presentError = (details) => (_errorFormatter ??= FlutterErrorFormatter()).present(details);
+    void present(FlutterErrorDetails details) => (_errorFormatter ??= FlutterErrorFormatter()).present(details);
+    FlutterError.presentError = present;
     if (current == null || current == FlutterError.dumpErrorToConsole || current == defaultPresenter) {
-      FlutterError.onError = (details) => FlutterError.presentError(details);
+      FlutterError.onError = keepStructuredErrors ? (details) => FlutterError.presentError(details) : present;
     } else {
       emit(
         Entry(

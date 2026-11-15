@@ -93,6 +93,30 @@ void main() {
     expect(printed, contains('    at lib/app/view/settings_page.dart:88:16  ListTile'));
   });
 
+  test('the hooks survive the widget inspector swapping presentError afterwards', () {
+    TidyLog.installErrorHooks();
+    // What WidgetInspectorService.initServiceExtensions does in every debug
+    // run once the binding starts (structured errors for the IDE).
+    final structured = <FlutterErrorDetails>[];
+    FlutterError.presentError = structured.add;
+
+    FlutterError.reportError(_details('A RenderFlex overflowed by 268 pixels on the right.'));
+
+    expect(printed.first, startsWith('ERR A RenderFlex overflowed by 268 pixels on the right.'));
+    expect(structured, isEmpty, reason: 'the tidy formatter prints it, not the inspector');
+  });
+
+  test('keepStructuredErrors: true leaves the error to presentError, as before', () {
+    TidyLog.installErrorHooks(keepStructuredErrors: true);
+    final structured = <FlutterErrorDetails>[];
+    FlutterError.presentError = structured.add;
+
+    FlutterError.reportError(_details('A RenderFlex overflowed by 268 pixels on the right.'));
+
+    expect(structured, hasLength(1));
+    expect(printed, isEmpty);
+  });
+
   test('uncaught async errors are logged and the previous handler decides', () {
     final seen = <Object>[];
     PlatformDispatcher.instance.onError = (error, stack) {
