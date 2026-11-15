@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "sample (tidy_log + wrapper)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "customTool": "${workspaceFolder}/../build/tidy_flutter",
+      "customToolReplacesArgs": 0
+    },
+    {
+      "name": "sample (tidy_log package only)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "sample (default Flutter output)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define=TIDY=false"]
+    },
+    {
+      "name": "sample (tidy, run all on start)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "customTool": "${workspaceFolder}/../build/tidy_flutter",
+      "customToolReplacesArgs": 0,
+      "toolArgs": ["--dart-define=AUTORUN=true"]
+    }
+  ]
+}

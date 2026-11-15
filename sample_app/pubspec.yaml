@@ -1,0 +1,22 @@
+name: tidy_log_sample
+description: "Scenario app that triggers common Flutter errors, API calls and platform-channel failures, to compare tidy_log output with the default console."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  dio: ^5.11.1
+  flutter:
+    sdk: flutter
+  tidy_log:
+    path: ../packages/tidy_log
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
