@@ -7,7 +7,7 @@ export 'src/console/pipeline.dart' show ConsolePipeline;
 export 'src/console/redactor.dart' show Redactor;
 export 'src/entry.dart' show Entry, Span, Tone;
 export 'src/flutter_messages.dart' show followOnKind, isFollowOnError, stripRenderIds;
-export 'src/http_entry.dart' show cap, httpEntry, thousands;
+export 'src/http_entry.dart' show HttpOutcome, cap, httpEntry, httpOutcome, thousands;
 export 'src/java_stack.dart' show JavaStack, isJavaException, javaSdkPrefixes, parseJavaStack, shortJavaException;
 export 'src/level.dart' show Level;
 export 'src/record_formatter.dart' show formatRecord, stackDetails;
