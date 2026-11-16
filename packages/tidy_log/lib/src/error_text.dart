@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:tidy_log_core/tidy_log_core.dart';
 
@@ -18,6 +19,7 @@ List<String>? describeError(Object error) {
   return switch (error) {
     DioException() => ['DioException · ${dioReason(error)}'],
     PlatformException() => _platform(error),
+    FlutterError() => _flutter(error),
     _ => null,
   };
 }
@@ -63,6 +65,13 @@ String _seconds(Duration? d) {
   if (d == null) return '';
   final ms = d.inMilliseconds;
   return ms % 1000 == 0 ? ' (${ms ~/ 1000} s)' : ' (${thousands(ms)} ms)';
+}
+
+/// The summary line and up to two hint lines; the rest of Flutter's
+/// explanation is the same every time and is left out.
+List<String> _flutter(FlutterError e) {
+  final lines = [for (final l in '$e'.split('\n')) if (l.trim().isNotEmpty) stripRenderIds(l.trim())];
+  return lines.isEmpty ? ['FlutterError'] : lines.take(3).toList();
 }
 
 List<String> _platform(PlatformException e) {

@@ -87,6 +87,22 @@ Caused by: java.io.IOException: decryption failed''';
     });
   });
 
+  test('an uncaught FlutterError keeps its summary and two hint lines, not the whole essay', () {
+    final error = FlutterError.fromParts([
+      ErrorSummary('setState() called after dispose(): _LateSetStatePageState#1a2b3(lifecycle state: defunct, not mounted)'),
+      ErrorDescription('This error happens if you call setState() on a State object for a widget that no longer appears in the widget tree.'),
+      ErrorHint('The preferred solution is to cancel the timer or stop listening to the animation in the dispose() callback.'),
+      ErrorHint('Another solution is to check the "mounted" property of this object before calling setState().'),
+      ErrorHint('This error might indicate a memory leak if setState() is being called because another object is retaining a reference.'),
+    ]);
+    TidyLog.e(error, tag: 'uncaught');
+    expect(printed, [
+      'ERR setState() called after dispose(): _LateSetStatePageState(lifecycle state: defunct, not mounted)  · uncaught',
+      '    This error happens if you call setState() on a State object for a widget that no longer appears in the widget tree.',
+      '    The preferred solution is to cancel the timer or stop listening to the animation in the dispose() callback.',
+    ]);
+  });
+
   test('an error passed as the message is described too (uncaught errors)', () {
     TidyLog.e(_dio(DioExceptionType.cancel), tag: 'uncaught');
     expect(printed.single, startsWith('ERR DioException · cancelled'));
