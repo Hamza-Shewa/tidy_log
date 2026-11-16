@@ -6,6 +6,9 @@ import 'package:tidy_log/tidy_log.dart';
 
 import 'fake_adapter.dart';
 
+/// A head line for a plain 200: no ✕ or ! mark after the status.
+final _plain200 = RegExp(r'^POST +/api/Auth/OpenSession +200  ');
+
 void main() {
   late List<String> printed;
 
@@ -49,14 +52,16 @@ void main() {
   group('ResponseRule.field', () {
     test('a 200 with success: false is logged as an error with its message', () async {
       final out = await call({'success': false, 'message': 'Insufficient balance'}, rules: [success]);
-      expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200 ✕ Insufficient balance'));
-      expect(out[1], '    rule  success = false → error');
+      expect(out.first, contains('200 ✕'));
+      expect(out[1], '    ✕ Insufficient balance');
+      expect(out[2], '    rule  success = false → error');
     });
 
     test('a 200 with success: true stays a plain success line', () async {
       final out = await call({'success': true, 'message': 'ok'}, rules: [success]);
-      expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200 · ok'));
-      expect(out[1], '    rule  success = true → success');
+      expect(out.first, matches(_plain200));
+      expect(out[1], '    · ok');
+      expect(out.where((l) => l.contains('rule')), isEmpty, reason: 'a success needs no rule line');
     });
 
     test('enum values match case-insensitively; the message can be the first item of a list', () async {
@@ -72,8 +77,9 @@ void main() {
         },
         rules: [rule],
       );
-      expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200 ! Session expires in 2 minutes'));
-      expect(out[1], '    rule  response_type = "warning" → warning');
+      expect(out.first, contains('200 !'));
+      expect(out[1], '    ! Session expires in 2 minutes');
+      expect(out[2], '    rule  response_type = "warning" → warning');
     });
 
     test('a number in the body matches a number or numeric text in the rule', () async {
@@ -85,7 +91,8 @@ void main() {
         },
         rules: [rule],
       );
-      expect(out.first, contains('200 ✕ unvalid api sign'));
+      expect(out.first, contains('200 ✕'));
+      expect(out, contains('    ✕ unvalid api sign'));
     });
 
     test('a dotted path reaches into nested objects and lists', () async {
@@ -102,7 +109,8 @@ void main() {
         },
         rules: [rule],
       );
-      expect(out.first, contains('200 ✕ Daily limit reached'));
+      expect(out.first, contains('200 ✕'));
+      expect(out, contains('    ✕ Daily limit reached'));
     });
 
     test('a JSON body that arrives as text is decoded for the rule', () async {
@@ -111,7 +119,8 @@ void main() {
         rules: [success],
         contentType: 'text/plain',
       );
-      expect(out.first, contains('200 ✕ plain text body'));
+      expect(out.first, contains('200 ✕'));
+      expect(out, contains('    ✕ plain text body'));
     });
 
     test('an unlisted value uses otherwise, or leaves the status colour when there is none', () async {
@@ -121,7 +130,7 @@ void main() {
       printed.clear();
       final loose = ResponseRule.field('status', {'OK': HttpOutcome.success});
       final out = await call({'status': 'PENDING'}, rules: [loose]);
-      expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200  '));
+      expect(out.first, matches(_plain200));
       expect(out.where((l) => l.contains('rule')), isEmpty);
     });
 
@@ -141,7 +150,7 @@ void main() {
     });
 
     test('a missing field or a non-JSON body gives no verdict', () async {
-      expect((await call({'other': 1}, rules: [success])).first, startsWith('POST /api/Auth/OpenSession  h  200  '));
+      expect((await call({'other': 1}, rules: [success])).first, matches(_plain200));
       printed.clear();
       expect(
         (await call('<html>oops</html>', rules: [success], contentType: 'text/html')).first,
@@ -158,7 +167,7 @@ void main() {
     test('the verdict message is redacted', () async {
       final rule = ResponseRule.field('ok', {false: HttpOutcome.error}, message: 'detail');
       final out = await call({'ok': false, 'detail': 'bad token: abc'}, rules: [rule]);
-      expect(out.first, contains('✕ bad token: ••••••••'));
+      expect(out, contains('    ✕ bad token: ••••••••'));
     });
   });
 
@@ -175,8 +184,9 @@ void main() {
         },
         rules: [rule],
       );
-      expect(out.first, contains('200 ✕ has errors'));
-      expect(out[1], '    rule  errors present');
+      expect(out.first, contains('200 ✕'));
+      expect(out[1], '    ✕ has errors');
+      expect(out[2], '    rule  errors present');
     });
 
     test('a rule that throws is reported and the call is still logged', () async {
@@ -201,11 +211,8 @@ void main() {
   group('httpBodies', () {
     test('always (the default) prints body and resp for a success', () async {
       final out = await call({'ok': true});
-      expect(out, [
-        'POST /api/Auth/OpenSession  h  200  ${out.first.split('200  ').last}',
-        '    body  {pin: ••••••••}',
-        '    resp  {ok: true}',
-      ]);
+      expect(out.first, matches(_plain200));
+      expect(out.skip(1), ['    body  pin: ••••••••', '    resp  ok: true']);
     });
 
     test('onFailure hides them for a success and shows them for a failure', () async {

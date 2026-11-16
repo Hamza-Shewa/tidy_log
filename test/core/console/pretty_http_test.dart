@@ -13,6 +13,11 @@ List<String> run(List<String> lines) {
 }
 
 const _p = 'I/flutter (1): ';
+
+/// The first line of an HTTP entry from a logger without timing: method and
+/// path columns, the status, then the host.
+String head(String method, String path, String status, String host) =>
+    '${method.padRight(7)}${path.padRight(46)}  ${status.padRight(3)}    $host';
 final _rule = '╚${'═' * 128}╝';
 
 /// The boxes core_banking's CoreNetworkLogger (a pretty_dio_logger style
@@ -51,8 +56,8 @@ void main() {
         ]),
       ]);
       final http = out.where((l) => l.startsWith('GET ')).toList();
-      expect(http, ['GET /api/Auth/SoftOtp?softToken=<redacted>  10.0.2.2:4020  200']);
-      expect(out, contains('    resp  {content: "111222", type: 1}'));
+      expect(http, [head('GET', '/api/Auth/SoftOtp?softToken=••••••••', '200', '10.0.2.2:4020')]);
+      expect(out, containsAllInOrder(['    resp  content: 111222', '          type: 1']));
       expect(out.join('\n'), isNot(contains('connectTimeout')));
       expect(out.join('\n'), isNot(contains('╔')));
     });
@@ -75,8 +80,8 @@ void main() {
           _rule,
         ]),
       ]);
-      expect(out.first, 'POST /api/Auth/Signin  h:1  200');
-      expect(out, contains('    body  {userName: 218900000000, pin: ••••••••}'));
+      expect(out.first, head('POST', '/api/Auth/Signin', '200', 'h:1'));
+      expect(out, containsAllInOrder(['    body  userName: 218900000000', '          pin: ••••••••']));
     });
 
     test('a 401 error box is matched to its request by URL and keeps the method', () {
@@ -92,9 +97,9 @@ void main() {
         ]),
       ]);
       expect(out, [
-        'POST /api/Transfer/Execute  h:1  401',
-        '    body  {amount: 150.5}',
-        '    resp  {messages: ["Session expired"]}',
+        head('POST', '/api/Transfer/Execute', '401', 'h:1'),
+        '    body  amount: 150.5',
+        '    resp  messages: ["Session expired"]',
       ]);
     });
 
@@ -106,7 +111,7 @@ void main() {
           'The connection errored: Connection refused This indicates an error which most likely cannot be solved by the library.',
         ),
       ]);
-      expect(out, ['GET /api/Inbox/List  h:1  ERR connection error: Connection refused']);
+      expect(out, [head('GET', '/api/Inbox/List', 'ERR', 'h:1'), '    ✕ connection error: Connection refused']);
     });
 
     test('two calls to the same URL are answered in the order they were sent', () {
@@ -117,10 +122,10 @@ void main() {
         ...box('DioError ║ Status: 500 Internal Server Error', 'http://h:1/api/pay?'),
       ]);
       expect(out, [
-        'POST /api/pay  h:1  200',
-        '    body  {amount: 1}',
-        'POST /api/pay  h:1  500',
-        '    body  {amount: 2}',
+        head('POST', '/api/pay', '200', 'h:1'),
+        '    body  amount: 1',
+        head('POST', '/api/pay', '500', 'h:1'),
+        '    body  amount: 2',
       ]);
     });
 
@@ -130,7 +135,13 @@ void main() {
         ...box('Request ║ GET ', 'http://h:1/b?'),
         ...box('DioError ║ DioExceptionType.receiveTimeout', 'null'),
       ]);
-      expect(out, ['ERR HTTP receive timeout', 'GET /a  h:1  no response logged', 'GET /b  h:1  no response logged']);
+      expect(out, [
+        'ERR HTTP receive timeout',
+        head('GET', '/a', '', 'h:1'),
+        '    · no response logged',
+        head('GET', '/b', '', 'h:1'),
+        '    · no response logged',
+      ]);
     });
 
     test('a request still open at the end of the run is reported, but never while it is open', () {
@@ -146,7 +157,7 @@ void main() {
         reason: 'an idle flush must not print a request that may still get its response',
       );
       final atEnd = [for (final e in pipeline.finish()) ...renderer.render(e)];
-      expect(atEnd, ['GET /api/Cards/List  h:1  no response logged']);
+      expect(atEnd, [head('GET', '/api/Cards/List', '', 'h:1'), '    · no response logged']);
     });
 
     test('a route line followed by the blank line before a box is still a NAV line', () {
@@ -166,7 +177,40 @@ void main() {
           _rule,
         ]),
       ]);
-      expect(out, contains('    resp  {access: "••••••••", type: 1}'));
+      expect(out, containsAllInOrder(['    resp  access: ••••••••', '          type: 1']));
+    });
+
+    test('list items keep a "- " marker so several items stay apart', () {
+      final out = run([
+        ...box('Request ║ GET ', 'http://h:1/accounts?'),
+        ...box('Response ║ GET ║ Status: 200 OK', 'http://h:1/accounts?', [
+          '╔ Body',
+          '║',
+          '║    {',
+          '║         content: [',
+          '║            {',
+          '║                 accId: 1,',
+          '║                 nickName: "Main"',
+          '║            },',
+          '║            {',
+          '║                 accId: 2,',
+          '║                 nickName: "Savings"',
+          '║            }',
+          '║         ],',
+          '║         type: 1',
+          '║    }',
+          '║',
+          _rule,
+        ]),
+      ]);
+      expect(out.skip(1), [
+        '    resp  content:',
+        '            - accId: 1',
+        '              nickName: Main',
+        '            - accId: 2',
+        '              nickName: Savings',
+        '          type: 1',
+      ]);
     });
 
     test('the blank lines the logger prints between boxes do not show up', () {

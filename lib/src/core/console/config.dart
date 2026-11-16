@@ -75,7 +75,7 @@ final class TidyConfig {
     this.projectPackages = const ['app'],
     this.redactKeys = defaultRedactKeys,
     this.color = true,
-    this.maxWidth = 220,
+    this.maxWidth = 160,
     this.rules = const [],
   });
 
@@ -127,7 +127,7 @@ final class TidyConfig {
       projectPackages: packages.isEmpty ? const ['app'] : packages,
       redactKeys: map.containsKey('redact_keys') ? strings('redact_keys') : defaultRedactKeys,
       color: color ?? (map['color'] as bool? ?? true),
-      maxWidth: (map['max_width'] as int?) ?? 220,
+      maxWidth: (map['max_width'] as int?) ?? 160,
       rules: [
         for (final rule in (map['rules'] as YamlList?) ?? YamlList())
           if (rule is YamlMap && rule['match'] != null)

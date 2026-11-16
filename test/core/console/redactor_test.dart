@@ -14,9 +14,39 @@ void main() {
     expect(redactor.apply('Authorization: Bearer abc.def.ghi'), 'Authorization: ••••••••');
   });
 
-  test('leaves words that only contain a key alone', () {
-    const text = 'spki_pinning_mismatch: host=example.test:443, SignToken: DEVICE01, pinned: 3';
+  test('masks compound keys that end in a secret word (softToken, newPassword)', () {
+    expect(
+      redactor.apply('/api/Auth/SoftOtp?softToken=2A7C254415F70FFE&lang=ar'),
+      '/api/Auth/SoftOtp?softToken=••••••••&lang=ar',
+    );
+    expect(redactor.apply('refreshToken: abc, accessToken: def'), 'refreshToken: ••••••••, accessToken: ••••••••');
+    expect(
+      redactor.apply('{"newPassword":"x","clientSecret":"y"}'),
+      '{"newPassword":"••••••••","clientSecret":"••••••••"}',
+    );
+    expect(redactor.apply('SignToken: DEVICE01'), 'SignToken: ••••••••');
+  });
+
+  test('masks keys that end in a short secret word (pin, otp, cvv)', () {
+    expect(
+      redactor.apply('walletPin: 1234, smsOtp: 987654, cardCvv: 123'),
+      'walletPin: ••••••••, smsOtp: ••••••••, cardCvv: ••••••••',
+    );
+  });
+
+  test('leaves keys that only contain a short secret word alone', () {
+    const text =
+        'spki_pinning_mismatch: host=example.test:443, pinned: 3, otpChannelReceiver: 0, pinCount: 2, tokenExpiry: 3600';
     expect(redactor.apply(text), text);
+  });
+
+  test('a key inside another value is still found', () {
+    expect(redactor.apply('Bad state: token: abc123'), 'Bad state: token: ••••••••');
+    expect(redactor.apply('error: pin=1234 rejected'), 'error: pin=•••••••• rejected');
+  });
+
+  test('an empty value stays visible as empty', () {
+    expect(redactor.apply('refreshToken: , systemIdentity: 9106'), 'refreshToken: , systemIdentity: 9106');
   });
 
   test('does not treat a header separator as a value', () {

@@ -1,15 +1,37 @@
 ──────── app started · pid 14271 ────────
 NAV /login → /loginSelectAccountPage
-GET /api/Auth/SoftOtp?softToken=<redacted>  10.0.2.2:4020  200
-    resp  {content: "111222", type: 1, messages: [] traceId: "00000000-0000-0000-0000-000000000001"}
-POST /api/Auth/Signin  10.0.2.2:4020  200
-    body  {userName: 218900000000, pin: ••••••••, otp: ••••••••}
-    resp  {content: {validTo: "2032-07-30T15:40:59Z", refreshToken: "<redacted>", systemIdentity: "1001", creds: 17, "••••••••"} type: 1, messages: [] traceId: "00000000-0000-0000-0000-000000000002"}
-GET /api/Auth/Accounts  10.0.2.2:4020  200
-    resp  {content: [{accId: 1, nickName: "Test account", currType: 1}], type: 1, messages: []}
-POST /api/Transfer/Execute  10.0.2.2:4020  401
-    body  {amount: 150.5, toAccount: 001200000000001}
-    resp  {type: 2, messages: ["Session expired"]}
-GET /api/Inbox/List  10.0.2.2:4020  ERR connection error: Connection refused
+GET    /api/Auth/SoftOtp?softToken=••••••••            200    10.0.2.2:4020
+    resp  content: 111222
+          type: 1
+          messages: []
+          traceId: 00000000-0000-0000-0000-000000000001
+POST   /api/Auth/Signin                                200    10.0.2.2:4020
+    body  userName: 218900000000
+          pin: ••••••••
+          otp: ••••••••
+    resp  content:
+            validTo: 2032-07-30T15:40:59Z
+            refreshToken: ••••••••
+            systemIdentity: 1001
+            creds: 17
+            "••••••••"
+          type: 1
+          messages: []
+          traceId: 00000000-0000-0000-0000-000000000002
+GET    /api/Auth/Accounts                              200    10.0.2.2:4020
+    resp  content:
+            - accId: 1
+              nickName: Test account
+              currType: 1
+          type: 1
+          messages: []
+POST   /api/Transfer/Execute                           401    10.0.2.2:4020
+    body  amount: 150.5
+          toAccount: 001200000000001
+    resp  type: 2
+          messages: ["Session expired"]
+GET    /api/Inbox/List                                 ERR    10.0.2.2:4020
+    ✕ connection error: Connection refused
     session refreshed, bearer ••••••••
-GET /api/Cards/List  10.0.2.2:4020  no response logged
+GET    /api/Cards/List                                        10.0.2.2:4020
+    · no response logged

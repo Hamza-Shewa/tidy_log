@@ -137,7 +137,7 @@ final class Restyler {
       source: source,
       details: [
         if (exception != null) [Span(exception, level.messageTone)],
-        [Span('at ${stack.frame}', level.messageTone)],
+        [Span('at ', level.messageTone), ...javaFrameSpans(stack.frame, level.messageTone)],
         if (note.isNotEmpty) [Span('┊ $note', Tone.dim)],
       ],
     );

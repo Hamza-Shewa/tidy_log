@@ -90,9 +90,11 @@ void main() {
       'I/flutter (3): └------',
     ]).skip(1).toList();
     expect(out, [
-      'POST /api/Auth/Signin  10.0.0.1:4013  401  1,003 ms · 15:21:09',
-      '    body  {userId: 1, pin: ••••••••, authUserType: 0}',
-      '    resp  {"error":"bad pin"}',
+      '${'POST'.padRight(7)}${'/api/Auth/Signin'.padRight(46)}  401  ${'1,003 ms'.padLeft(9)}  15:21:09  10.0.0.1:4013',
+      '    body  userId: 1',
+      '          pin: ••••••••',
+      '          authUserType: 0',
+      '    resp  error: bad pin',
     ]);
   });
 

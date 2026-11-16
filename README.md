@@ -2,14 +2,14 @@
 
 Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or a terminal.
 
-- Errors open with **where** they happened (`at lib/app/view/home_page.dart:145:12  HomePage._onTap`), followed by a short dimmed trail of your own frames and a count of hidden frames.
-- Native logcat lines lose their `D/WindowOnBackDispatcher(31800):` prefix. The tag moves to a dim suffix, and the level becomes a coloured `DBG / INF / WRN / ERR` label.
+- Errors open with **where** they happened (`at lib/app/view/home_page.dart:145:12  HomePage._onTap`, the location in blue so it stands out), followed by a short dimmed trail of your own frames and a count of hidden frames.
+- Native logcat lines lose their `D/WindowOnBackDispatcher(31800):` prefix. The tag moves to a dim suffix in a fixed column, and the level becomes a coloured `DBG / INF / WRN / ERR` label. In a terminal, lines are fitted to the window instead of wrapping.
 - Noise is handled for you:
   - Identical lines collapse into one line with `×30`.
   - Near-duplicates fold into `↳ +6 similar`.
   - Native Java stack traces fold to the exception, the first non-SDK frame and the `caused by` line.
   - Chatty Android tags are hidden by default.
-- Dio calls become one line each (`POST /api/Auth/Signin  401  1,003 ms`), coloured by status, with PINs, passwords and tokens masked. Response rules can flag a 200 whose body says it failed (`200 ✕ Insufficient balance`).
+- Each Dio call gets one aligned line (method, path, status, duration, time, host in fixed columns), coloured by status, with its body and response underneath one field per line. PINs, OTPs, tokens (also `softToken`, `refreshToken` and URL query values), passwords and JWTs are masked. Response rules can flag a 200 whose body says it failed (`200 ✕`, with the reason on the next line).
 - Packages that log HTTP with pretty_dio_logger-style boxes (`╔╣ Request ║ GET`) need no change: the runner pairs each request with its response and prints the same one line, without the header and timeout rows. Anything shaped like a JWT is masked wherever it appears, even when a logger prints it without its key.
 - Each new app process gets a divider, and so does each hot restart.
 - Every run also writes a **clean copy** to `.dart_tool/tidy_log/last_run.log`, in plain text with no colours and no tags, ready to paste.
@@ -22,8 +22,9 @@ ERR EncryptedSharedPreferences initialization failed. Falling back…     · Flu
     ┊ … 6 frames hidden · caused by GeneralSecurityException: decryption failed
 DBG Sending viewport metrics to the engine.                             · FlutterJNI  ×30
 NAV /login → /loginSelectAccountPage
-POST /api/Auth/OpenSession  10.0.2.2:4013  200  1,010 ms · 15:22:58
-    resp  {"type":2,"messages":["unvalid api sign .....en-US"],…}
+POST   /api/Auth/OpenSession                           200   1,010 ms  15:22:58  10.0.2.2:4013
+    resp  type: 2
+          messages: [unvalid api sign .....en-US]
 ERR Error refreshing session: unvalid api sign .....en-US
     at package:core_kit/infrastructure/network/httpHandler/handle_exception.dart:42:5  HandleException.handleException
     ┊ package:core_kit/…/network_service_impl.dart:97:14  NetworkServiceImpl.requestService
@@ -153,10 +154,14 @@ TidyLog.configure(httpRules: [ // or TidyDioInterceptor(rules: [...]) for one cl
 ```
 
 ```
-POST /api/wallet/pay        127.0.0.1:45887  200 ✕ Insufficient balance  12 ms · 21:48:42
+POST   /api/wallet/pay                                 200 ✕     12 ms  21:48:42  127.0.0.1:45887
+    ✕ Insufficient balance
     rule  success = false → error
-GET  /api/session           127.0.0.1:45887  200 ! Session expires in 2 minutes  4 ms · 21:48:42
-POST /api/Auth/OpenSession  10.0.2.2:4013    200 ✕ unvalid api sign  1,010 ms · 15:22:58
+GET    /api/session                                    200 !      4 ms  21:48:42  127.0.0.1:45887
+    ! Session expires in 2 minutes
+    rule  response_type = "WARNING" → warning
+POST   /api/Auth/OpenSession                           200 ✕  1,010 ms  15:22:58  10.0.2.2:4013
+    ✕ unvalid api sign
     rule  type = 2 → error
 ```
 
@@ -179,7 +184,7 @@ show_tags: [ImeTracker]  # wins over the preset and hide_tags
 hide_messages: ['^Width is zero']
 min_native_level: debug  # verbose | debug | info | warning | error
 redact_keys: [pin, password, passcode, otp, token, secret, cvv, authorization]
-max_width: 220           # long head lines are shortened in the console (never in the clean copy)
+max_width: 160           # widest console line when the output is not a terminal (a terminal's own width is used); never applies to the clean copy
 color: true              # or set NO_COLOR=1
 rules:                   # label your own Dart print lines
   - match: '^unhandled element'

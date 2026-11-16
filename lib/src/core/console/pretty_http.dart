@@ -19,7 +19,15 @@ import '../level.dart';
 /// `╔╣ DioError ║ Status: 401 Unauthorized` (URL, no method) or
 /// `╔╣ DioError ║ DioExceptionType.connectionError` (a message, no URL).
 final class PrettyBox {
-  const PrettyBox._({required this.kind, this.method, this.url, this.status, this.errorType, this.message, this.body});
+  const PrettyBox._({
+    required this.kind,
+    this.method,
+    this.url,
+    this.status,
+    this.errorType,
+    this.message,
+    this.body = const [],
+  });
 
   final PrettyKind kind;
   final String? method;
@@ -33,9 +41,9 @@ final class PrettyBox {
   final String? errorType;
   final String? message;
 
-  /// The request body (from its `Body` table) or the response body, on one
-  /// line.
-  final String? body;
+  /// The request body (from its `Body` table) or the response body, one
+  /// field per line.
+  final List<String> body;
 
   /// Parses the lines of one box (logcat prefix already removed). Returns
   /// null when [lines] is not such a box.
@@ -67,7 +75,7 @@ final class PrettyBox {
           kind: PrettyKind.request,
           method: header.length > 1 ? header[1] : null,
           url: _normalizeUrl(second),
-          body: table != null ? '{${table.value.join(', ')}}' : _flatten(bodyLines),
+          body: table != null ? table.value : _lines(bodyLines),
         );
       case 'Response':
         return PrettyBox._(
@@ -75,14 +83,14 @@ final class PrettyBox {
           method: header.length > 1 ? header[1] : null,
           url: _normalizeUrl(second),
           status: status == null ? null : int.parse(status),
-          body: _flatten(bodyLines),
+          body: _lines(bodyLines),
         );
       case 'DioError' when status != null:
         return PrettyBox._(
           kind: PrettyKind.error,
           url: _normalizeUrl(second),
           status: int.parse(status),
-          body: _flatten(bodyLines),
+          body: _lines(bodyLines),
         );
       case 'DioError':
         return PrettyBox._(
@@ -94,6 +102,11 @@ final class PrettyBox {
         return null;
     }
   }
+
+  /// `key: "value"` → `key: value`, like the in-app interceptor prints it.
+  /// An empty string stays `""` so it is visibly empty.
+  static String _unquote(String line) =>
+      line.replaceFirstMapped(RegExp(r'^([^"]*?: )"(.+)"$'), (m) => '${m[1]}${m[2]}');
 
   static bool _isHeaderSection(String? section) =>
       section != null && (section == 'Headers' || section == 'Query Parameters' || section == 'Extras');
@@ -109,24 +122,44 @@ final class PrettyBox {
     return decoded.endsWith('?') ? decoded.substring(0, decoded.length - 1) : decoded;
   }
 
-  /// Joins a pretty-printed body into one line. A string the logger wrapped
-  /// over several lines (it splits long values at its width) is joined back
-  /// without spaces, so it can be recognised and masked as a whole.
-  static String? _flatten(List<String> lines) {
-    final buffer = StringBuffer();
+  /// The body as the logger printed it, one field per line: box characters,
+  /// braces and trailing commas removed, nesting kept as two-space indents.
+  /// A string the logger wrapped over several lines (it splits long values at
+  /// its width) is joined back first, so it can be recognised and masked.
+  static List<String> _lines(List<String> raw) {
+    final joined = <String>[];
     var inString = false;
-    for (final raw in lines) {
-      final piece = raw.trim();
-      if (piece.isEmpty) continue;
-      if (buffer.isNotEmpty && !inString) buffer.write(' ');
-      buffer.write(piece);
-      if ('"'.allMatches(piece).length.isOdd) inString = !inString;
+    for (final line in raw) {
+      if (line.trim().isEmpty) continue;
+      if (inString && joined.isNotEmpty) {
+        joined[joined.length - 1] += line.trim();
+      } else {
+        joined.add(line.trimRight());
+      }
+      if ('"'.allMatches(line).length.isOdd) inString = !inString;
     }
-    if (buffer.isEmpty) return null;
-    return buffer
-        .toString()
-        .replaceAllMapped(RegExp(r'([\[{])\s+'), (m) => m[1]!)
-        .replaceAllMapped(RegExp(r'\s+([\]}])'), (m) => m[1]!);
+    final brace = RegExp(r'^\s*[\[\]{}],?$');
+    final kept = [
+      for (final line in joined)
+        if (!brace.hasMatch(line)) line,
+    ];
+    if (kept.isEmpty) return const [];
+    int indentOf(String l) => l.length - l.trimLeft().length;
+    final base = kept.map(indentOf).reduce((a, b) => a < b ? a : b);
+    final out = <String>[];
+    var itemStart = false;
+    for (final line in joined) {
+      if (brace.hasMatch(line)) {
+        // A `{` deeper than the fields opens a list item: mark its first field.
+        if (line.trim().startsWith('{') && indentOf(line) > base) itemStart = true;
+        continue;
+      }
+      final level = (indentOf(line) - base) ~/ 4;
+      final text = _unquote(line.trim().replaceFirst(RegExp(r',$'), '').replaceFirst(RegExp(r':\s*[\[{]$'), ':'));
+      out.add(itemStart && level > 0 ? '${'  ' * (level - 1)}- $text' : '${'  ' * level}$text');
+      itemStart = false;
+    }
+    return out;
   }
 }
 
@@ -156,8 +189,9 @@ final class PrettyHttpPairer {
             method: request?.method ?? box.method ?? 'HTTP',
             url: box.url!,
             status: box.status,
-            body: _maybe(request?.body),
-            response: _maybe(box.body),
+            bodyLines: request?.body ?? const [],
+            responseLines: box.body,
+            redact: _redact,
           ),
         ];
       case _:
@@ -172,7 +206,8 @@ final class PrettyHttpPairer {
               method: request.method ?? 'HTTP',
               url: request.url ?? '',
               error: error,
-              body: _maybe(request.body),
+              bodyLines: request.body,
+              redact: _redact,
             ),
           ];
         }
@@ -186,16 +221,17 @@ final class PrettyHttpPairer {
   List<Entry> finish() {
     final entries = [
       for (final request in _open.values.expand((q) => q))
-        () {
-          final entry = httpEntry(method: request.method ?? 'HTTP', url: request.url ?? '', body: _maybe(request.body));
-          return Entry(head: [...entry.head, const Span('no response logged', Tone.dim)], details: entry.details);
-        }(),
+        httpEntry(
+          method: request.method ?? 'HTTP',
+          url: request.url ?? '',
+          verdict: 'no response logged',
+          bodyLines: request.body,
+          redact: _redact,
+        ),
     ];
     _open.clear();
     return entries;
   }
-
-  String? _maybe(String? text) => text == null ? null : _redact(text);
 
   PrettyBox? _take(String url) {
     final queue = _open[url];

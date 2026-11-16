@@ -47,11 +47,23 @@ WRN java.net.SocketException: Unresolved address  ×2
     spki_pinning_mismatch: host=api.example.test:20883, status=rejected, reason=TLS/SPKI validation preflight failed for "api.example.test": HandshakeException: Handshake error in client (OS Error:
     TLSV1_ALERT_UNRECOGNIZED_NAME(tls_record.cc:489))
 ──────── app started · pid 32287 ────────
-POST /api/Auth/Signin  10.0.2.2:4013  ERR SocketException: Connection refused  74,991 ms · 15:21:09
-    body  {userId: 100001, pin: ••••••••, authUserType: 0}
-POST /api/Auth/OpenSession  10.0.2.2:4013  200  1,010 ms · 15:22:58
-    body  {AppId: 0, SignToken: DEVICE01, DeviceID: DEVICE01, NotificationsToken: DEVICE01, DeviceType: 0, ProductType: 300, DeviceInfo: Google sdk_gphone16k_arm64_OS:16064790, Version: 3.3.0}
-    resp  {"type":2,"messages":["unvalid api sign .....en-US"],"traceId":"e9f395d6-2cb9-43ab-bc09-312db31de4d2"}
+POST   /api/Auth/Signin                                ERR  74,991 ms  15:21:09  10.0.2.2:4013
+    ✕ SocketException: Connection refused
+    body  userId: 100001
+          pin: ••••••••
+          authUserType: 0
+POST   /api/Auth/OpenSession                           200   1,010 ms  15:22:58  10.0.2.2:4013
+    body  AppId: 0
+          SignToken: ••••••••
+          DeviceID: DEVICE01
+          NotificationsToken: ••••••••
+          DeviceType: 0
+          ProductType: 300
+          DeviceInfo: Google sdk_gphone16k_arm64_OS:16064790
+          Version: 3.3.0
+    resp  type: 2
+          messages: [unvalid api sign .....en-US]
+          traceId: e9f395d6-2cb9-43ab-bc09-312db31de4d2
 ERR Error refreshing session: unvalid api sign .....en-US
     at package:core_kit/infrastructure/network/httpHandler/handle_exception.dart:42:5  HandleException.handleException
     ┊ package:core_kit/infrastructure/network/httpClient/network_service_impl.dart:97:14  NetworkServiceImpl.requestService
