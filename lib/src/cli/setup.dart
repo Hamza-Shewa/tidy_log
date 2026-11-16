@@ -11,15 +11,17 @@ const setupUsage = '''
 dart run tidy_log:setup [options]
 
 VS Code (default): writes .vscode/tidy_flutter (and .bat) and adds a
-"<name> (tidy logs)" copy of each Dart launch config in .vscode/launch.json.
-Your own configs and comments are left as they are.
+"<name> (tidy logs)" copy of each Flutter run or attach config in
+.vscode/launch.json (test configs get none). Your own configs and comments
+are left as they are.
 
   --remove              undo: delete the tidy configs and launcher scripts
+                        (ones you have edited are kept)
   --dry-run             print what would change, write nothing
 
 Android Studio / IntelliJ (once per machine):
 
-  --sdk                 create a shim Flutter SDK (symlinks to your real SDK,
+  --sdk                 create a shim Flutter SDK (links to your real SDK,
                         which is never modified) and point the IDE at it
   --sdk --remove        delete the shim
   --sdk-dir <path>      shim location (default ~/.tidy_log/flutter_sdk)
@@ -68,6 +70,7 @@ SetupPlan planProjectSetup(Directory project, {bool remove = false}) {
   final makeExecutable = <String>[];
 
   String? launchJsonError;
+  var stillUsed = const <String>[];
   try {
     final launch = File('${project.path}/$_launchJson');
     final bytes = launch.existsSync() ? launch.readAsBytesSync() : null;
@@ -84,7 +87,9 @@ SetupPlan planProjectSetup(Directory project, {bool remove = false}) {
       for (final name in edit.added) 'added launch config "$name"',
       for (final name in edit.removed) 'removed launch config "$name"',
       for (final reason in edit.skipped) 'left as is: $reason',
+      ...edit.notes,
     ]);
+    stillUsed = edit.kept;
   } on LaunchJsonException catch (e) {
     launchJsonError = e.message;
   } on FormatException catch (e) {
@@ -97,17 +102,26 @@ SetupPlan planProjectSetup(Directory project, {bool remove = false}) {
     );
   }
 
-  for (final (path, content) in [(launcherPath, shellLauncher), ('$launcherPath.bat', batchLauncher)]) {
+  for (final (path, content, previous) in [
+    (launcherPath, shellLauncher, const <String>[]),
+    ('$launcherPath.bat', batchLauncher, previousBatchLaunchers),
+  ]) {
     final file = File('${project.path}/$path');
+    final outdated = file.existsSync() && !_sameContent(file, content) && previous.any((p) => _sameContent(file, p));
     if (!file.existsSync()) {
       if (!remove) writes[path] = content;
-    } else if (!_sameContent(file, content)) {
+    } else if (outdated && !remove) {
+      writes[path] = content;
+      notes.add('updated $path from an earlier version of tidy_log');
+    } else if (!outdated && !_sameContent(file, content)) {
       // Teams may edit the committed launchers: never overwrite or delete those.
       notes.add(
         remove
             ? 'kept $path (it differs from the template; delete it by hand if you no longer need it)'
             : 'kept $path (it differs from the template; delete it and rerun to update)',
       );
+    } else if (remove && stillUsed.isNotEmpty) {
+      notes.add('kept $path (launch config "${stillUsed.first}" still uses it)');
     } else if (remove) {
       deletes.add(path);
     } else if (path == launcherPath && !Platform.isWindows && file.statSync().mode & 0x40 == 0) {
@@ -118,10 +132,12 @@ SetupPlan planProjectSetup(Directory project, {bool remove = false}) {
 
   if (remove) {
     final vscode = Directory('${project.path}/.vscode');
-    // Drop .vscode too when setup's files were all that was left in it.
+    // Drop .vscode too when setup's files were all that was left in it. Plan
+    // paths use `/`; listSync gives `\` on Windows.
+    String relative(FileSystemEntity e) => e.path.substring(project.path.length + 1).replaceAll(r'\', '/');
     if (deletes.isNotEmpty &&
         vscode.existsSync() &&
-        vscode.listSync(followLinks: false).every((e) => deletes.contains(e.path.substring(project.path.length + 1)))) {
+        vscode.listSync(followLinks: false).every((e) => deletes.contains(relative(e)))) {
       deletes.add('.vscode');
     }
   }
@@ -142,8 +158,10 @@ bool _sameContent(File file, String content) {
   return actual.length == expected.length && _startsWith(actual, expected);
 }
 
-/// Applies [plan] to [project]. The shell launcher is made executable.
-void applySetup(Directory project, SetupPlan plan) {
+/// Applies [plan] to [project]. The shell launcher is made executable, in
+/// git too when git already tracks it. Returns notes for the user about git
+/// (see [_gitFollowUp]).
+List<String> applySetup(Directory project, SetupPlan plan) {
   for (final MapEntry(key: path, value: content) in plan.writes.entries) {
     final file = File('${project.path}/$path')..parent.createSync(recursive: true);
     file.writeAsStringSync(content);
@@ -157,6 +175,49 @@ void applySetup(Directory project, SetupPlan plan) {
     // Not recursive: a folder is only deleted when it is really empty.
     FileSystemEntity.isDirectorySync(full) ? Directory(full).deleteSync() : File(full).deleteSync();
   }
+  return _gitFollowUp(
+    project,
+    shellLauncher: plan.writes.containsKey(launcherPath) || plan.makeExecutable.contains(launcherPath),
+    batchLauncher: plan.writes.containsKey('$launcherPath.bat'),
+  );
+}
+
+/// Git housekeeping for launchers that were just written, when [project]
+/// is in a git work tree. The committed shell launcher must keep its
+/// executable bit, which git cannot see on Windows (`core.fileMode` false):
+/// if git already tracks the file, the bit is set in the index; otherwise
+/// the user gets the command to run after `git add`. The batch launcher
+/// needs CRLF line endings in every checkout, so a missing `eol=crlf`
+/// attribute gets a note. `.gitattributes` itself is never edited.
+List<String> _gitFollowUp(Directory project, {required bool shellLauncher, required bool batchLauncher}) {
+  if (!shellLauncher && !batchLauncher) return const [];
+  String? git(List<String> args) {
+    try {
+      final result = Process.runSync('git', args, workingDirectory: project.path);
+      return result.exitCode == 0 ? '${result.stdout}'.trim() : null;
+    } on ProcessException {
+      return null; // no git on PATH
+    }
+  }
+
+  if (git(['rev-parse', '--is-inside-work-tree']) != 'true') return const [];
+  final notes = <String>[];
+  if (shellLauncher) {
+    if (git(['ls-files', '--error-unmatch', '--', launcherPath]) != null) {
+      if (git(['update-index', '--chmod=+x', '--', launcherPath]) != null) {
+        notes.add('set the executable bit of $launcherPath in git');
+      }
+    } else if (git(['config', '--get', 'core.fileMode']) == 'false') {
+      notes.add(
+        'git does not record executable bits here: after `git add`, run '
+        '`git update-index --chmod=+x $launcherPath` so it starts on macOS and Linux',
+      );
+    }
+  }
+  if (batchLauncher && !(git(['check-attr', 'eol', '--', '$launcherPath.bat']) ?? '').endsWith(': crlf')) {
+    notes.add('consider adding `*.bat text eol=crlf` to .gitattributes so $launcherPath.bat keeps CRLF line endings');
+  }
+  return notes;
 }
 
 void _makeExecutable(Directory project, String path) {
@@ -227,9 +288,10 @@ int runSetup(List<String> args, {Directory? project, IOSink? out, IOSink? err, M
     }
     return 0;
   }
+  var gitNotes = const <String>[];
   if (!dryRun) {
     try {
-      applySetup(dir, plan);
+      gitNotes = applySetup(dir, plan);
     } on SetupException catch (e) {
       errors.writeln('tidy_log setup: $e');
       return 1;
@@ -248,7 +310,7 @@ int runSetup(List<String> args, {Directory? project, IOSink? out, IOSink? err, M
   for (final path in plan.deletes) {
     sink.writeln('  ${verb}delete $path');
   }
-  for (final note in plan.notes) {
+  for (final note in [...plan.notes, ...gitNotes]) {
     sink.writeln('  $note');
   }
   if (launchJsonError != null) {

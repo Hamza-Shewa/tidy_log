@@ -27,6 +27,8 @@ final class LaunchEdit {
     this.added = const [],
     this.removed = const [],
     this.skipped = const [],
+    this.notes = const [],
+    this.kept = const [],
     this.leftEmpty = false,
   });
 
@@ -37,6 +39,13 @@ final class LaunchEdit {
 
   /// Configs left alone, with the reason (`name: reason`).
   final List<String> skipped;
+
+  /// Other things the user should know, one sentence each.
+  final List<String> notes;
+
+  /// After a removal: the names of tidy configs that were kept because they
+  /// were changed after setup added them. They still use the launchers.
+  final List<String> kept;
 
   bool get changed => added.isNotEmpty || removed.isNotEmpty;
 
@@ -53,8 +62,14 @@ final class LaunchJsonException implements Exception {
   String toString() => message;
 }
 
-/// Adds a `<name> (tidy logs)` twin of every `"type": "dart"` config in
-/// [source] (the text of `.vscode/launch.json`, or null when it is missing).
+/// Adds a `<name> (tidy logs)` twin of every Flutter app launch (`"type":
+/// "dart"`, `run` or `attach`) in [source] (the text of
+/// `.vscode/launch.json`, or null when it is missing).
+///
+/// Test configs (a `program` under `test/` or `integration_test/`, or
+/// `"templateFor": "test"`) and plain Dart programs (a `program` outside
+/// `lib/`) get none: tidy_log only tidies `flutter run` and `attach`. When
+/// two configs share a name, the second twin is `<name> (tidy logs 2)`.
 ///
 /// The twins are inserted as text after the last config, so comments and
 /// formatting elsewhere in the file stay byte for byte. Running it again
@@ -83,28 +98,81 @@ LaunchEdit _addTidyTwins(String? source) {
 
   final twins = <Map<String, Object?>>[];
   final skipped = <String>[];
-  for (final config in configs) {
-    final name = '${config['name'] ?? 'Flutter'}';
-    if (config['type'] != 'dart' || isTidyConfig(config) || name.endsWith(twinSuffix)) continue;
-    if (names.contains('$name$twinSuffix')) continue;
+  final notes = <String>[];
+  for (final (config, twinName) in _sources(configs)) {
+    final name = _name(config);
+    if (names.contains(twinName)) continue;
+    final notTidied = _notTidied(config);
+    if (notTidied != null) {
+      skipped.add('$name: $notTidied');
+      continue;
+    }
     if (config['customTool'] != null) {
       skipped.add('$name: already uses customTool ${config['customTool']}');
       continue;
     }
-    twins.add(_twin(config));
+    final windowsTool = _windowsToolOf(config);
+    if (windowsTool != null) {
+      notes.add(
+        'launch config "$twinName" keeps its own windows.customTool ($windowsTool), '
+        'so on Windows it runs without tidy_log',
+      );
+    }
+    twins.add(_twin(config, twinName));
   }
-  if (twins.isEmpty && !configs.any(isTidyConfig)) twins.add(defaultTidyConfig());
+  final fallback = defaultTidyConfig();
+  if (twins.isEmpty && !configs.any(isTidyConfig) && !names.contains(fallback['name'])) twins.add(fallback);
   if (twins.isEmpty) return LaunchEdit(source, skipped: skipped);
 
   return LaunchEdit(
     _insert(source, array, twins),
     added: [for (final t in twins) t['name']! as String],
     skipped: skipped,
+    notes: notes,
   );
 }
 
-/// Removes every config that [addTidyTwins] would have added (any config
-/// whose `customTool` is the tidy launcher). Other text is left as it is.
+String _name(Map<String, Object?> config) => '${config['name'] ?? 'Flutter'}';
+
+/// `<name> (tidy logs)` or, for a later config with the same name,
+/// `<name> (tidy logs 2)` and so on.
+final _twinName = RegExp(r'^(.*) \(tidy logs(?: (\d+))?\)$');
+
+/// Every config that can have a twin (a Dart config that is not a tidy
+/// config or named like a twin), with the name its twin gets.
+List<(Map<String, Object?>, String)> _sources(List<Map<String, Object?>> configs) {
+  final seen = <String, int>{};
+  return [
+    for (final config in configs)
+      if (config['type'] == 'dart' && !isTidyConfig(config) && !_twinName.hasMatch(_name(config)))
+        (config, _nthTwinName(_name(config), seen[_name(config)] = (seen[_name(config)] ?? 0) + 1)),
+  ];
+}
+
+String _nthTwinName(String name, int n) => n == 1 ? '$name$twinSuffix' : '$name (tidy logs $n)';
+
+/// Why [config] gets no twin, or null when it is a Flutter app launch.
+String? _notTidied(Map<String, Object?> config) {
+  List<String> segments(Object? path) => path is String ? path.replaceAll(r'\', '/').split('/') : const [];
+  bool isTest(List<String> s) => s.contains('test') || s.contains('integration_test');
+  final program = segments(config['program']);
+  final template = config['templateFor'];
+  if (isTest(program) || (template is String && (template == 'test' || isTest(segments(template))))) {
+    return 'a test config (tidy_log only tidies flutter run and attach)';
+  }
+  if (program.isNotEmpty && !program.contains('lib')) return 'not a Flutter app (program ${config['program']})';
+  return null;
+}
+
+String? _windowsToolOf(Map<String, Object?> config) {
+  final windows = config['windows'];
+  return windows is Map && windows['customTool'] != null ? '${windows['customTool']}' : null;
+}
+
+/// Removes every config that [addTidyTwins] added and that is still as it
+/// was written. A tidy config that was changed since is kept and reported
+/// in [LaunchEdit.kept], as an edited launcher script is. Other text is left
+/// as it is.
 LaunchEdit removeTidyTwins(String source) {
   try {
     return _removeTidyTwins(source);
@@ -118,13 +186,54 @@ LaunchEdit _removeTidyTwins(String source) {
   final removed = <String>[];
   while (true) {
     final array = _findConfigurations(text);
-    final index = array.elements.indexWhere((e) => isTidyConfig(_decode(text.substring(e.start, e.end))));
+    final configs = [for (final e in array.elements) _decode(text.substring(e.start, e.end))];
+    final index = configs.indexWhere((c) => isTidyConfig(c) && _asWritten(c, configs));
     if (index < 0) break;
-    final element = array.elements[index];
-    removed.add('${_decode(text.substring(element.start, element.end))['name']}');
+    removed.add('${configs[index]['name']}');
     text = _removeElement(text, array.elements, index);
   }
-  return LaunchEdit(text, removed: removed, leftEmpty: removed.isNotEmpty && _isEmptyDefault(text));
+  final kept = [
+    for (final e in _findConfigurations(text).elements)
+      if (_decode(text.substring(e.start, e.end)) case final c when isTidyConfig(c)) '${c['name']}',
+  ];
+  return LaunchEdit(
+    text,
+    removed: removed,
+    kept: kept,
+    skipped: [
+      for (final name in kept) '$name: changed since setup added it; delete it by hand if you no longer need it',
+    ],
+    leftEmpty: removed.isNotEmpty && _isEmptyDefault(text),
+  );
+}
+
+/// Whether tidy config [twin] is exactly what [addTidyTwins] wrote for its
+/// source in [configs] (or the default config), also as older versions
+/// wrote it (they replaced a `windows.customTool`).
+bool _asWritten(Map<String, Object?> twin, List<Map<String, Object?>> configs) {
+  final name = '${twin['name']}';
+  final source = [
+    for (final (config, twinName) in _sources(configs))
+      if (twinName == name) config,
+  ].firstOrNull;
+  return [
+    if (source != null) ...[_twin(source, name), _twin(source, name, replaceWindowsTool: true)],
+    if (name == defaultTidyConfig()['name']) defaultTidyConfig(),
+  ].any((written) => _sameJson(written, twin));
+}
+
+bool _sameJson(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    return a.length == b.length && a.keys.every((k) => b.containsKey(k) && _sameJson(a[k], b[k]));
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_sameJson(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
 }
 
 /// Removes element [index] and only what belongs to it: its own comma, and
@@ -181,13 +290,16 @@ bool _isEmptyDefault(String text) {
 /// are not ours and are never removed.
 bool isTidyConfig(Map<String, Object?> config) => config['customTool'] == tidyToolFields['customTool'];
 
-Map<String, Object?> _twin(Map<String, Object?> config) {
+/// The tidy twin of [config], named [name]. A `windows.customTool` of its
+/// own is kept unless [replaceWindowsTool] (what earlier versions did).
+Map<String, Object?> _twin(Map<String, Object?> config, String name, {bool replaceWindowsTool = false}) {
   final windows = config['windows'];
+  final keepWindowsTool = !replaceWindowsTool && _windowsToolOf(config) != null;
   return {
     ...config,
-    'name': '${config['name'] ?? 'Flutter'}$twinSuffix',
+    'name': name,
     ...tidyToolFields,
-    'windows': {if (windows is Map) ...windows, 'customTool': _windowsTool},
+    'windows': {if (windows is Map) ...windows, if (!keepWindowsTool) 'customTool': _windowsTool},
   };
 }
 

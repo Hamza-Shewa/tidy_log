@@ -1,5 +1,7 @@
 // Plain `test`s, not `testWidgets`: they talk to a real loopback server,
 // which the widget-test binding would replace with a fake HTTP client.
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tidy_log/tidy_log.dart';
@@ -17,16 +19,22 @@ void main() {
   setUpAll(() async => server = await MockServer.start(slowDelay: const Duration(milliseconds: 600)));
   tearDownAll(() => server.close());
 
-  setUp(() {
-    logger = RecordingLogger();
-    final dio = Dio(
+  /// An [ApiDemo] on the mock server. Only the timeout test shortens [receiveTimeout]; a slow test machine must not
+  /// turn the other calls into timeouts.
+  ApiDemo apiWith({Duration receiveTimeout = const Duration(seconds: 10)}) => ApiDemo(
+    Dio(
       BaseOptions(
         baseUrl: server.baseUri.toString(),
         connectTimeout: const Duration(seconds: 2),
-        receiveTimeout: const Duration(milliseconds: 200),
+        receiveTimeout: receiveTimeout,
       ),
-    );
-    api = ApiDemo(dio, logger);
+    ),
+    logger,
+  );
+
+  setUp(() {
+    logger = RecordingLogger();
+    api = apiWith();
   });
 
   group('successful calls', () {
@@ -60,7 +68,9 @@ void main() {
     });
 
     test('a slow answer ends in a receive timeout', () async {
-      expect(await api.loadSlowReport(), 'Report failed: receiveTimeout');
+      // The server answers after 600 ms.
+      final impatient = apiWith(receiveTimeout: const Duration(milliseconds: 200));
+      expect(await impatient.loadSlowReport(), 'Report failed: receiveTimeout');
       expect((logger.records.single.error! as DioException).type, DioExceptionType.receiveTimeout);
     });
 
@@ -71,9 +81,13 @@ void main() {
     });
 
     test('a closed port fails without a response', () async {
+      // A port that was free a moment ago, rather than assuming nothing listens on port 9.
+      final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = probe.port;
+      await probe.close();
       // Android and Linux refuse at once (connectionError); Windows retries
       // the SYN and gives up after the connect timeout.
-      expect(await api.pingRefused(), matches(r'^Ping failed: (connectionError|connectionTimeout)$'));
+      expect(await api.pingRefused(port: port), matches(r'^Ping failed: (connectionError|connectionTimeout)$'));
       expect((logger.records.single.error! as DioException).response, isNull);
     });
   });
@@ -102,16 +116,56 @@ void main() {
       await tidyApi.activateCard();
       await tidyApi.loadAccounts();
 
-      final heads = [for (final l in printed) if (l.startsWith('GET') || l.startsWith('POST')) l.split(RegExp(r'\s{2}\d[\d,]* ms')).first];
-      expect(heads, [
-        'GET /api/balance  ${server.baseUri.authority}  200 · OK',
-        'POST /api/wallet/pay  ${server.baseUri.authority}  200 ✕ Insufficient balance',
-        'GET /api/session  ${server.baseUri.authority}  200 ! Session expires in 2 minutes',
-        'POST /api/Auth/OpenSession  ${server.baseUri.authority}  200 ✕ unvalid api sign',
-        'POST /api/cards/activate  ${server.baseUri.authority}  400 ✕ Card is blocked',
-        'GET /api/accounts  ${server.baseUri.authority}  200',
+      // Read the fields, not the column layout, so restyling the entry does not break this test.
+      final entries = httpEntries(printed);
+      expect([for (final e in entries) (e.method, e.path, e.status)], [
+        ('GET', '/api/balance', '200'),
+        ('POST', '/api/wallet/pay', '200'),
+        ('GET', '/api/session', '200'),
+        ('POST', '/api/Auth/OpenSession', '200'),
+        ('POST', '/api/cards/activate', '400'),
+        ('GET', '/api/accounts', '200'),
       ]);
-      expect(printed, contains('    rule  type = 2 → error'));
+      expect([for (final e in entries) e.verdict], [
+        '· OK',
+        '✕ Insufficient balance',
+        '! Session expires in 2 minutes',
+        '✕ unvalid api sign',
+        '✕ Card is blocked',
+        null,
+      ]);
+      for (final e in entries) {
+        expect(e.lines.join('\n'), contains(server.baseUri.authority), reason: 'every entry names the host');
+      }
+      expect(printed.map((l) => l.trim()), contains('rule  type = 2 → error'));
     });
   });
+}
+
+typedef HttpEntry = ({String method, String path, String status, String? verdict, List<String> lines});
+
+/// The HTTP entries in [printed]: a line that starts with the method, path and status, and the indented lines under
+/// it. The verdict is the first `· text`, `✕ text` or `! text` in the entry, wherever the layout puts it.
+List<HttpEntry> httpEntries(List<String> printed) {
+  final head = RegExp(r'^(GET|POST|PUT|PATCH|DELETE)\s+(\S+)\s+(\d{3}|ERR)\b');
+  final verdict = RegExp(r'([·✕!]) (\S.*?)(?=\s{2}|$)');
+  final groups = <List<String>>[];
+  for (final line in printed.expand((l) => l.split('\n'))) {
+    if (head.hasMatch(line)) {
+      groups.add([line]);
+    } else if (groups.isNotEmpty && line.startsWith(' ')) {
+      groups.last.add(line);
+    }
+  }
+  return [
+    for (final lines in groups)
+      if (head.firstMatch(lines.first) case final m?)
+        (
+          method: m[1]!,
+          path: m[2]!,
+          status: m[3]!,
+          verdict: [for (final l in lines) ?verdict.firstMatch(l)].map((v) => '${v[1]} ${v[2]}').firstOrNull,
+          lines: lines,
+        ),
+  ];
 }

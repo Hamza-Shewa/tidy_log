@@ -10,7 +10,9 @@ import '../core/renderer.dart';
 /// talks; it goes to [styled] unchanged. Every other line is device or tool
 /// output, which runs through the [ConsolePipeline]. Each resulting entry is
 /// written styled to [styled] and as plain text to [plain] (the clean copy).
-final class OutputRouter {
+///
+/// A `base` class so tests can stand in a router that fails.
+base class OutputRouter {
   OutputRouter({required this.pipeline, required this.styled, this.plain, Renderer? styledRenderer})
     : _styledRenderer = styledRenderer ?? Renderer(color: pipeline.config.color, maxWidth: pipeline.config.maxWidth),
       _plainRenderer = const Renderer(color: false);

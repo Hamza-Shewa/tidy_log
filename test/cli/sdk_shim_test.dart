@@ -216,9 +216,14 @@ void main() {
     }
     expect(forwarding, [
       'call :scan %*',
-      r'call "%TIDY_REAL%\bin\dart.bat" run tidy_log %*',
-      r'call "%TIDY_REAL%\bin\flutter.bat" %*',
+      r'call "%%TIDY_REAL%%\bin\dart.bat" run tidy_log %*',
+      r'call "%%TIDY_REAL%%\bin\flutter.bat" %*',
     ]);
+  });
+
+  test('the batch shim writes a % in the SDK path as %%', () {
+    final lines = shimBatchScript(r'C:\sdk 100% & co').split('\r\n');
+    expect(lines, contains(r'set "TIDY_REAL=C:\sdk 100%% & co"'));
   });
 
   test('the batch shim walks up to the nearest package config', () {

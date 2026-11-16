@@ -76,8 +76,10 @@ final class ApiDemo {
   /// 200 with a body that is not valid JSON.
   Future<String> loadBrokenJson() => _expectFailure('Accounts (broken JSON)', () => _dio.get<Object?>('/api/broken-json'));
 
-  /// Nothing listens on port 9, so the connection is refused.
-  Future<String> pingRefused() => _expectFailure('Ping', () => _dio.get<Object?>('http://127.0.0.1:9/api/ping'));
+  /// Nothing listens on [port] (9, the discard port, by default), so the
+  /// connection is refused. Tests pass a port they know to be closed.
+  Future<String> pingRefused({int port = 9}) =>
+      _expectFailure('Ping', () => _dio.get<Object?>('http://127.0.0.1:$port/api/ping'));
 
   /// `.invalid` never resolves (RFC 2606), so the DNS lookup fails.
   Future<String> pingUnknownHost() => _expectFailure('Ping (DNS)', () => _dio.get<Object?>('http://api.sample.invalid/api/ping'));

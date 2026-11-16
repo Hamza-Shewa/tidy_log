@@ -46,6 +46,19 @@ exec "\$root/bin/flutter" "\$@"
 /// safe, and keeps delayed expansion off so a `!` in an argument survives.
 final batchLauncher = _batchLauncherLf.replaceAll('\n', '\r\n');
 
+/// Earlier versions of [batchLauncher]. Setup updates them (and `--remove`
+/// deletes them) as it does the current one; only files a team edited are
+/// left alone.
+final previousBatchLaunchers = [
+  // Up to 0.2.0: the SDK path was expanded twice by `call`, which broke a
+  // path with a percent sign in it.
+  batchLauncher.replaceFirst(_callNote, '').replaceAll('"%%TIDY_ROOT%%', '"%TIDY_ROOT%'),
+];
+
+const _callNote =
+    'rem call expands the line a second time, so the SDK path is only expanded\r\n'
+    'rem then: a percent sign in it is not read as the start of a variable.\r\n';
+
 const _batchLauncherLf =
     '''
 @echo off
@@ -71,10 +84,12 @@ set "TIDY_DIR=%TIDY_UP%"
 goto find_config
 :check_config
 findstr /c:"\\"name\\": \\"tidy_log\\"" "%TIDY_DIR%\\.dart_tool\\package_config.json" >nul 2>&1 || goto plain
-call "%TIDY_ROOT%\\bin\\dart.bat" run tidy_log %*
+rem call expands the line a second time, so the SDK path is only expanded
+rem then: a percent sign in it is not read as the start of a variable.
+call "%%TIDY_ROOT%%\\bin\\dart.bat" run tidy_log %*
 exit /b %errorlevel%
 :plain
 echo tidy_log is not resolved yet ^(run flutter pub get^); using plain flutter 1>&2
-call "%TIDY_ROOT%\\bin\\flutter.bat" %*
+call "%%TIDY_ROOT%%\\bin\\flutter.bat" %*
 exit /b %errorlevel%
 ''';

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # bash on every runner (Git Bash on Windows), so a failing command stops its step.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.x
+          cache: true
+
+      - name: Package
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Example
+        working-directory: example
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Sample app
+        working-directory: sample_app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Publish dry run
+        if: runner.os == 'Linux'
+        run: dart pub publish --dry-run

@@ -18,10 +18,10 @@ Directory project(Map<String, String> files) {
   return dir;
 }
 
-/// Every file under [dir] (relative path → content).
+/// Every file under [dir] (relative path with `/` separators → content).
 Map<String, String> snapshot(Directory dir) => {
   for (final f in dir.listSync(recursive: true, followLinks: false).whereType<File>())
-    f.path.substring(dir.path.length + 1): f.readAsStringSync(),
+    f.path.substring(dir.path.length + 1).replaceAll(r'\', '/'): f.readAsStringSync(),
 };
 
 const _pubspec = 'name: my_app\ndev_dependencies:\n  tidy_log: ^0.1.0\n';
@@ -30,6 +30,14 @@ const _launch =
 
 int run(Directory dir, List<String> args, StringBuffer out, [StringBuffer? err]) =>
     runSetup(args, project: dir, out: _BufferSink(out), err: _BufferSink(err ?? StringBuffer()));
+
+final _hasGit = () {
+  try {
+    return Process.runSync('git', ['--version']).exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}();
 
 /// Whether the owner may execute [path].
 bool ownerCanExecute(String path) => File(path).statSync().mode & 0x40 != 0;
@@ -101,26 +109,30 @@ void main() {
     expect(result.stderr.toString(), contains('tidy_log is not resolved yet'));
   }, skip: Platform.isWindows ? 'the shell launcher is for macOS and Linux' : false);
 
-  test('--sdk with --sdk-dir creates the shim there, --sdk --remove deletes it', () {
-    final dir = project({'pubspec.yaml': _pubspec});
-    final shim = '${dir.path}/shim';
-    final real = findRealFlutterRoot();
-    final out = StringBuffer();
+  test(
+    '--sdk with --sdk-dir creates the shim there, --sdk --remove deletes it',
+    () {
+      final dir = project({'pubspec.yaml': _pubspec});
+      final shim = '${dir.path}/shim';
+      final real = findRealFlutterRoot();
+      final out = StringBuffer();
 
-    expect(
-      runSetup(['--sdk', '--sdk-dir', shim, '--flutter-root', real], project: dir, out: _BufferSink(out)),
-      0,
-      reason: 'flutter root: $real',
-    );
-    expect(File('$shim/bin/flutter').existsSync(), isTrue);
-    expect(out.toString(), contains('Flutter SDK path: $shim'));
-    expect(snapshot(dir).keys.where((k) => !k.startsWith('shim/')), [
-      'pubspec.yaml',
-    ], reason: 'the project is not touched');
+      expect(
+        runSetup(['--sdk', '--sdk-dir', shim, '--flutter-root', real], project: dir, out: _BufferSink(out)),
+        0,
+        reason: 'flutter root: $real',
+      );
+      expect(File('$shim/bin/flutter').existsSync(), isTrue);
+      expect(out.toString(), contains('Flutter SDK path: $shim'));
+      expect(snapshot(dir).keys.where((k) => !k.startsWith('shim/')), [
+        'pubspec.yaml',
+      ], reason: 'the project is not touched');
 
-    expect(runSetup(['--sdk', '--remove', '--sdk-dir', shim], project: dir, out: _BufferSink(StringBuffer())), 0);
-    expect(Directory(shim).existsSync(), isFalse);
-  }, skip: Platform.isWindows ? 'the shim test uses symlinks' : false);
+      expect(runSetup(['--sdk', '--remove', '--sdk-dir', shim], project: dir, out: _BufferSink(StringBuffer())), 0);
+      expect(Directory(shim).existsSync(), isFalse);
+    },
+    skip: Platform.isWindows ? 'links the real SDK; sdk_shim_windows_test.dart covers Windows with a fake one' : false,
+  );
 
   test('--sdk --dry-run writes nothing, and --sdk-dir needs a value', () {
     final dir = project({'pubspec.yaml': _pubspec});
@@ -264,6 +276,84 @@ void main() {
 
     expect(snapshot(dir), before);
   });
+
+  test('--remove keeps a tidy config the team edited, and the launchers it uses, with notes', () {
+    final dir = project({'pubspec.yaml': _pubspec, '.vscode/launch.json': _launch});
+    expect(run(dir, [], StringBuffer()), 0);
+    final launch = File('${dir.path}/.vscode/launch.json');
+    launch.writeAsStringSync(
+      launch.readAsStringSync().replaceFirst(
+        '"name": "dev (tidy logs)",',
+        '"name": "dev (tidy logs)", "deviceId": "x",',
+      ),
+    );
+
+    final out = StringBuffer();
+    expect(run(dir, ['--remove'], out), 0);
+
+    final files = snapshot(dir);
+    expect(files['.vscode/launch.json'], contains('"deviceId": "x"'));
+    expect(files['.vscode/tidy_flutter'], shellLauncher);
+    expect(files['.vscode/tidy_flutter.bat'], batchLauncher);
+    expect(out.toString(), contains('left as is: dev (tidy logs): changed since setup added it'));
+    expect(out.toString(), contains('kept .vscode/tidy_flutter (launch config "dev (tidy logs)" still uses it)'));
+  });
+
+  test('a launcher from an earlier version is updated on rerun, and removed by --remove', () {
+    final old = previousBatchLaunchers.single;
+    final dir = project({'pubspec.yaml': _pubspec, '.vscode/tidy_flutter.bat': old});
+
+    final out = StringBuffer();
+    expect(run(dir, [], out), 0);
+    expect(snapshot(dir)['.vscode/tidy_flutter.bat'], batchLauncher);
+    expect(out.toString(), contains('updated .vscode/tidy_flutter.bat from an earlier version'));
+
+    File('${dir.path}/.vscode/tidy_flutter.bat').writeAsStringSync(old);
+    expect(run(dir, ['--remove'], StringBuffer()), 0);
+    expect(snapshot(dir).keys, ['pubspec.yaml']);
+  });
+
+  group('in a git work tree', () {
+    String git(Directory dir, List<String> args) {
+      final result = Process.runSync('git', args, workingDirectory: dir.path);
+      expect(result.exitCode, 0, reason: 'git ${args.join(' ')}: ${result.stderr}');
+      return '${result.stdout}'.trim();
+    }
+
+    Directory repo(Map<String, String> files) {
+      final dir = project(files);
+      git(dir, ['init', '-q']);
+      // As on Windows, where git cannot see executable bits.
+      git(dir, ['config', 'core.fileMode', 'false']);
+      return dir;
+    }
+
+    test('an untracked launcher gets the command that marks it executable, and a .gitattributes note', () {
+      final dir = repo({'pubspec.yaml': _pubspec});
+      final out = StringBuffer();
+
+      expect(run(dir, [], out), 0);
+
+      expect(out.toString(), contains('git update-index --chmod=+x .vscode/tidy_flutter'));
+      expect(out.toString(), contains('`*.bat text eol=crlf`'));
+      expect(File('${dir.path}/.gitattributes').existsSync(), isFalse, reason: 'never edited');
+    });
+
+    test('a launcher git already tracks gets its executable bit in the index', () {
+      final dir = repo({'pubspec.yaml': _pubspec, '.gitattributes': '*.bat text eol=crlf\n'});
+      expect(run(dir, [], StringBuffer()), 0);
+      git(dir, ['add', '.vscode']);
+      expect(git(dir, ['ls-files', '-s', '.vscode/tidy_flutter']), startsWith('100644'));
+      File('${dir.path}/.vscode/tidy_flutter').deleteSync();
+
+      final out = StringBuffer();
+      expect(run(dir, [], out), 0);
+
+      expect(git(dir, ['ls-files', '-s', '.vscode/tidy_flutter']), startsWith('100755'));
+      expect(out.toString(), contains('set the executable bit of .vscode/tidy_flutter in git'));
+      expect(out.toString(), isNot(contains('eol=crlf')), reason: '.gitattributes already has the rule');
+    });
+  }, skip: _hasGit ? false : 'git is not installed');
 
   test('an unknown option is a usage error', () {
     final dir = project({'pubspec.yaml': _pubspec});

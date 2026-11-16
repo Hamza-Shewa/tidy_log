@@ -75,7 +75,7 @@ void createShim(String shimPath, String realRoot) {
 
   final staging = Directory('${shim.path}.tmp-$pid');
   try {
-    if (staging.existsSync()) staging.deleteSync(recursive: true);
+    if (staging.existsSync()) _deleteShim(staging);
     staging.createSync(recursive: true);
     // Marker first: whatever happens next, the folder is recognisably ours.
     File('${staging.path}/$shimMarker').writeAsStringSync('$realRoot\n');
@@ -105,7 +105,7 @@ void createShim(String shimPath, String realRoot) {
 /// Best-effort cleanup that never hides the error being handled.
 void _deleteQuietly(Directory dir) {
   try {
-    if (dir.existsSync()) dir.deleteSync(recursive: true);
+    if (dir.existsSync()) _deleteShim(dir);
   } on FileSystemException {
     // Nothing more to do; the caller is already reporting the real problem.
   }
@@ -141,18 +141,60 @@ bool removeShim(String shimPath) {
   if (!File('$shimPath/$shimMarker').existsSync()) {
     throw ShimException('$shimPath is not a tidy_log shim; not deleting it.');
   }
-  shim.deleteSync(recursive: true);
+  _deleteShim(shim);
   return true;
 }
 
-/// Links [path] to [target]. On Windows, where file symlinks need extra
-/// rights, plain files are copied instead (folders become junctions).
+/// Deletes [dir], a shim or a part-built one. Its links (junctions on
+/// Windows) are removed as links first, so the delete can never reach into
+/// the real SDK they point to.
+void _deleteShim(Directory dir) {
+  for (final folder in [dir, Directory('${dir.path}/bin')]) {
+    if (!folder.existsSync()) continue;
+    for (final entity in folder.listSync(followLinks: false)) {
+      if (entity is Link) entity.deleteSync();
+    }
+  }
+  dir.deleteSync(recursive: true);
+}
+
+/// Links [path] to [target]. Folders become links: directory junctions on
+/// Windows, which need no special rights. Files are linked on macOS and
+/// Linux and copied on Windows, where a file link would need Developer Mode
+/// or an elevated shell.
 void _link(String path, FileSystemEntity target) {
   final targetPath = target.absolute.path;
-  if (Platform.isWindows && target is File) {
-    target.copySync(path);
-  } else {
+  if (!Platform.isWindows) {
     Link(path).createSync(targetPath);
+  } else if (FileSystemEntity.isDirectorySync(targetPath)) {
+    _junction(path.replaceAll('/', r'\'), targetPath.replaceAll('/', r'\'));
+  } else {
+    File(targetPath).copySync(path);
+  }
+}
+
+/// Creates a directory junction at [path] pointing at [target] with
+/// `mklink /J`. The paths reach cmd through environment variables, quotes
+/// included, so `%`, `&`, `^` and spaces in them are never parsed. When that
+/// fails (junctions need an NTFS drive), a symbolic link is tried, which
+/// needs Developer Mode or an elevated shell.
+void _junction(String path, String target) {
+  final mklink = Process.runSync(
+    'cmd',
+    ['/d', '/c', 'mklink', '/J', '%TIDY_LINK%', '%TIDY_TARGET%'],
+    environment: {'TIDY_LINK': '"$path"', 'TIDY_TARGET': '"$target"'},
+  );
+  if (mklink.exitCode == 0 && FileSystemEntity.isDirectorySync(path)) return;
+  try {
+    Link(path).createSync(target);
+  } on FileSystemException catch (e) {
+    final said = '${mklink.stderr}${mklink.stdout}'.trim();
+    throw ShimException(
+      'Could not link $path to $target. A directory junction failed${said.isEmpty ? '' : ' ($said)'}, '
+      'and so did a symbolic link (${e.osError?.message.trim() ?? e.message}). '
+      'Put the shim on an NTFS drive with --sdk-dir, or turn on Developer Mode '
+      '(Settings > System > For developers) or use an elevated shell, then rerun.',
+    );
   }
 }
 
@@ -196,6 +238,10 @@ exec "\$real/bin/flutter" "\$@"
 /// `--dart-define=GREETING=Hello!`). So the main part runs with it off, and
 /// `:scan` looks for the command in its own setlocal, handing back only a
 /// fixed word (`tidy` or `plain`) across its endlocal.
+///
+/// A `%` in [realRoot] is written as `%%`, so cmd does not read it as the
+/// start of a variable. `call` expands its line a second time, so the calls
+/// name `%%TIDY_REAL%%`: the path is only expanded in that second pass.
 String shimBatchScript(String realRoot) =>
     '''
 @echo off
@@ -204,7 +250,7 @@ rem Sends `flutter run` and `flutter attach` through tidy_log in projects that
 rem depend on it; everything else goes straight to the real Flutter SDK.
 rem Delayed expansion stays off here, so a ! in an argument is passed on intact.
 setlocal DisableDelayedExpansion
-set "TIDY_REAL=$realRoot"
+set "TIDY_REAL=${realRoot.replaceAll('%', '%%')}"
 set "FLUTTER_ROOT=%TIDY_REAL%"
 if defined TIDY_LOG_WRAPPED goto plain
 call :scan %*
@@ -221,10 +267,10 @@ goto find_config
 :check_config
 findstr /c:"\\"name\\": \\"tidy_log\\"" "%TIDY_DIR%\\.dart_tool\\package_config.json" >nul 2>&1 || goto plain
 set "TIDY_FLUTTER_BIN=%TIDY_REAL%\\bin\\flutter.bat"
-call "%TIDY_REAL%\\bin\\dart.bat" run tidy_log %*
+call "%%TIDY_REAL%%\\bin\\dart.bat" run tidy_log %*
 exit /b %errorlevel%
 :plain
-call "%TIDY_REAL%\\bin\\flutter.bat" %*
+call "%%TIDY_REAL%%\\bin\\flutter.bat" %*
 exit /b %errorlevel%
 
 :scan

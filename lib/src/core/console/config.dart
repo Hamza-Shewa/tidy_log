@@ -122,41 +122,75 @@ final class TidyConfig {
   /// like `ResponseRule.field` does in the app. The first verdict wins.
   final List<FieldRule> httpRules;
 
+  /// A copy with the given fields replaced.
+  TidyConfig copyWith({
+    Preset? preset,
+    List<String>? hideTags,
+    List<String>? showTags,
+    List<String>? hideMessages,
+    Level? minNativeLevel,
+    List<String>? projectPackages,
+    List<String>? redactKeys,
+    bool? color,
+    int? maxWidth,
+    List<LabelRule>? rules,
+    List<FieldRule>? httpRules,
+  }) => TidyConfig(
+    preset: preset ?? this.preset,
+    hideTags: hideTags ?? this.hideTags,
+    showTags: showTags ?? this.showTags,
+    hideMessages: hideMessages ?? this.hideMessages,
+    minNativeLevel: minNativeLevel ?? this.minNativeLevel,
+    projectPackages: projectPackages ?? this.projectPackages,
+    redactKeys: redactKeys ?? this.redactKeys,
+    color: color ?? this.color,
+    maxWidth: maxWidth ?? this.maxWidth,
+    rules: rules ?? this.rules,
+    httpRules: httpRules ?? this.httpRules,
+  );
+
   /// Parses `tidy_log.yaml`. [appPackage] (the `name:` from pubspec.yaml) is
   /// put first in [projectPackages] when the file does not list it.
+  ///
+  /// A mistake in the file throws a [FormatException] whose message has one
+  /// line per problem, such as `tidy_log.yaml: hide_tags: expected a list of
+  /// strings`. Every key is checked, so all problems are reported at once.
   factory TidyConfig.fromYaml(String? source, {String? appPackage, bool? color}) {
-    final doc = source == null || source.trim().isEmpty ? null : loadYaml(source);
-    final map = doc is YamlMap ? doc : YamlMap();
-    List<String> strings(String key) => [for (final v in (map[key] as YamlList?) ?? YamlList()) '$v'];
+    final Object? doc;
+    try {
+      doc = source == null || source.trim().isEmpty ? null : loadYaml(source);
+    } on YamlException catch (e) {
+      throw FormatException('$_file: not valid YAML (line ${(e.span?.start.line ?? 0) + 1}: ${e.message})');
+    }
+    if (doc != null && doc is! YamlMap) {
+      throw const FormatException('$_file: expected settings as "key: value" lines, such as preset: quiet');
+    }
+    final settings = _Settings(doc is YamlMap ? doc : YamlMap());
 
-    final packages = strings('project_packages');
+    final packages = settings.strings('project_packages') ?? [];
     if (appPackage != null && !packages.contains(appPackage)) packages.insert(0, appPackage);
 
-    return TidyConfig(
-      preset: map['preset'] == 'all' ? Preset.all : Preset.quiet,
-      hideTags: strings('hide_tags'),
-      showTags: strings('show_tags'),
-      hideMessages: strings('hide_messages'),
-      minNativeLevel: Level.values.firstWhere(
-        (l) => l.name == map['min_native_level'] || l.label == '${map['min_native_level']}'.toUpperCase(),
-        orElse: () => Level.debug,
-      ),
+    // Checked even when NO_COLOR overrides it, so a typo still shows up.
+    final fileColor = settings.boolean('color');
+    final config = TidyConfig(
+      preset: settings.choice('preset', Preset.values, (p) => [p.name]) ?? Preset.quiet,
+      hideTags: settings.strings('hide_tags') ?? const [],
+      showTags: settings.strings('show_tags') ?? const [],
+      hideMessages: settings.patterns('hide_messages') ?? const [],
+      minNativeLevel: settings.choice('min_native_level', Level.values, (l) => [l.name, l.label]) ?? Level.debug,
       projectPackages: packages.isEmpty ? const ['app'] : packages,
-      redactKeys: map.containsKey('redact_keys') ? strings('redact_keys') : defaultRedactKeys,
-      color: color ?? (map['color'] as bool? ?? true),
-      maxWidth: (map['max_width'] as int?) ?? 160,
-      rules: [
-        for (final rule in (map['rules'] as YamlList?) ?? YamlList())
-          if (rule is YamlMap && rule['match'] != null)
-            LabelRule(
-              RegExp('${rule['match']}'),
-              '${rule['label'] ?? 'LOG'}'.padRight(3).substring(0, 3),
-              Tone.values.firstWhere((t) => t.name == rule['tone'], orElse: () => Tone.accent),
-            ),
-      ],
-      httpRules: [for (final (i, rule) in ((map['http_rules'] as YamlList?) ?? YamlList()).indexed) _httpRule(i, rule)],
+      // `redact_keys:` with nothing after it turns masking off, as `[]` does.
+      redactKeys: settings.has('redact_keys') ? (settings.strings('redact_keys') ?? const []) : defaultRedactKeys,
+      color: color ?? fileColor ?? true,
+      maxWidth: settings.width('max_width') ?? 160,
+      rules: settings.list('rules', 'a list of rules, each with match, label and tone', _labelRule),
+      httpRules: settings.list('http_rules', 'a list of rules', _httpRule),
     );
+    if (settings.problems.isNotEmpty) throw FormatException(settings.problems.join('\n'));
+    return config;
   }
+
+  static const _file = 'tidy_log.yaml';
 
   /// One `http_rules` entry. A mistake is reported rather than skipped, so
   /// a typo never quietly turns a rule off.
@@ -177,5 +211,118 @@ final class TidyConfig {
       message: rule['message'] == null ? null : '${rule['message']}',
       otherwise: rule['otherwise'] == null ? null : outcome(rule['otherwise']),
     );
+  }
+
+  /// One `rules` entry: `match` (a pattern), optional `label` and `tone`.
+  static LabelRule _labelRule(int index, Object? rule) {
+    Never fail(String problem) => throw FormatException('$_file: rules[$index]: $problem');
+    if (rule is! YamlMap) fail('expected match, label and tone keys');
+    final match = rule['match'];
+    if (match == null || '$match'.isEmpty) fail('missing match (a pattern for the log text)');
+    if (match is YamlNode) fail('match: expected a pattern, not a list or map');
+    final tone = rule['tone'];
+    return LabelRule(
+      _Settings.regExp('$match', (problem) => fail('match: $problem')),
+      '${rule['label'] ?? 'LOG'}'.padRight(3).substring(0, 3),
+      tone == null
+          ? Tone.accent
+          : Tone.values.firstWhere(
+              (t) => t.name == '$tone',
+              orElse: () => fail('tone: unknown tone "$tone" (use ${Tone.values.map((t) => t.name).join(', ')})'),
+            ),
+    );
+  }
+}
+
+/// Reads and checks the keys of `tidy_log.yaml`, collecting every problem.
+final class _Settings {
+  _Settings(this._map);
+
+  final YamlMap _map;
+  final problems = <String>[];
+
+  void _problem(String key, String text) => problems.add('${TidyConfig._file}: $key: $text');
+
+  bool has(String key) => _map.containsKey(key);
+
+  /// A list of plain values. Null when the key is missing, empty or wrong.
+  List<String>? strings(String key) {
+    final value = _map[key];
+    if (value == null) return null;
+    if (value is! YamlList || value.any((v) => v == null || v is YamlList || v is YamlMap)) {
+      _problem(key, 'expected a list of strings');
+      return null;
+    }
+    return [for (final v in value) '$v'];
+  }
+
+  /// A list of regular expressions, each checked.
+  List<String>? patterns(String key) {
+    final list = strings(key);
+    if (list == null) return null;
+    var ok = true;
+    for (final (i, pattern) in list.indexed) {
+      regExp(pattern, (problem) {
+        _problem('$key[$i]', problem);
+        ok = false;
+      });
+    }
+    return ok ? list : null;
+  }
+
+  T? choice<T>(String key, List<T> values, List<String> Function(T) names) {
+    final value = _map[key];
+    if (value == null) return null;
+    final text = '$value'.toLowerCase();
+    for (final v in values) {
+      if (names(v).any((n) => n.toLowerCase() == text) && value is! YamlNode) return v;
+    }
+    _problem(key, 'expected one of ${values.map((v) => names(v).first).join(', ')}');
+    return null;
+  }
+
+  bool? boolean(String key) {
+    final value = _map[key];
+    if (value == null || value is bool) return value as bool?;
+    _problem(key, 'expected true or false');
+    return null;
+  }
+
+  int? width(String key) {
+    final value = _map[key];
+    if (value == null) return null;
+    if (value is int && value > 0) return value;
+    _problem(key, 'expected a whole number above 0, such as 120');
+    return null;
+  }
+
+  /// A list whose items [item] reads; an item's [FormatException] becomes a
+  /// problem and the item is left out.
+  List<T> list<T>(String key, String expected, T Function(int index, Object? item) item) {
+    final value = _map[key];
+    if (value == null) return const [];
+    if (value is! YamlList) {
+      _problem(key, 'expected $expected');
+      return const [];
+    }
+    final out = <T>[];
+    for (final (i, entry) in value.indexed) {
+      try {
+        out.add(item(i, entry));
+      } on FormatException catch (e) {
+        problems.add(e.message);
+      }
+    }
+    return out;
+  }
+
+  /// Compiles [pattern], or reports why it is not a valid pattern.
+  static RegExp regExp(String pattern, void Function(String problem) onError) {
+    try {
+      return RegExp(pattern);
+    } on FormatException catch (e) {
+      onError('invalid pattern "$pattern" (${e.message})');
+      return RegExp(r'(?!)');
+    }
   }
 }

@@ -39,6 +39,33 @@ ProcessResult launch(String cwd, List<String> args, {Map<String, String> env = c
   );
 }
 
+/// A fake Windows Flutter SDK at [name] whose `flutter.bat` and `dart.bat` print [label] and how they were called.
+String fakeBatSdk(String name, String label) {
+  final root = '${tmp.path}\\$name';
+  Directory('$root\\bin').createSync(recursive: true);
+  for (final tool in ['flutter', 'dart']) {
+    File('$root\\bin\\$tool.bat').writeAsStringSync('@echo off\r\necho $label ${tool.toUpperCase()} %*\r\n');
+  }
+  return root;
+}
+
+/// Runs the batch launcher under cmd.exe in [cwd] with only [env] (plus a minimal PATH) set.
+ProcessResult launchBat(String cwd, List<String> args, {Map<String, String> env = const {}, String? extraPath}) {
+  final script = File('${tmp.path}\\tidy_flutter.bat')..writeAsStringSync(batchLauncher);
+  final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+  return Process.runSync(
+    '$system\\System32\\cmd.exe',
+    ['/c', script.path, ...args],
+    workingDirectory: cwd,
+    includeParentEnvironment: false,
+    environment: {
+      'SystemRoot': system,
+      'PATH': [?extraPath, '$system\\System32'].join(';'),
+      ...env,
+    },
+  );
+}
+
 String app(String relative) => (Directory('${tmp.path}/$relative')..createSync(recursive: true)).path;
 
 void main() {
@@ -125,7 +152,96 @@ void main() {
       expect(result.stderr.toString().trim(), 'tidy_log: flutter not found on PATH');
       expect(result.stdout.toString(), isEmpty);
     });
-  });
+  }, skip: Platform.isWindows ? 'the shell launcher is for macOS and Linux' : false);
+
+  group('batch launcher under cmd.exe', () {
+    test('a pub workspace member uses the package config at the workspace root', () {
+      final sdk = fakeBatSdk('sdk', 'A');
+      packageConfig(app('ws'), 'tidy_log');
+      final member = app(r'ws\packages\app');
+
+      final result = launchBat(member, ['run', '-d', 'x'], env: {'FLUTTER_ROOT': sdk});
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout.toString().trim(), 'A DART run tidy_log run -d x');
+      expect(result.stderr.toString(), isNot(contains('not resolved')));
+    });
+
+    test('the nearest package config wins, so a nested app without tidy_log falls back', () {
+      final sdk = fakeBatSdk('sdk', 'A');
+      packageConfig(app('ws'), 'tidy_log');
+      final member = app(r'ws\packages\app');
+      packageConfig(member, 'dio');
+
+      final result = launchBat(member, ['run'], env: {'FLUTTER_ROOT': sdk});
+
+      expect(result.stdout.toString().trim(), 'A FLUTTER run');
+      expect(result.stderr.toString(), contains('tidy_log is not resolved yet'));
+    });
+
+    test('with no package config anywhere up the tree it falls back to plain flutter', () {
+      final sdk = fakeBatSdk('sdk', 'A');
+
+      final result = launchBat(app('lonely'), ['run'], env: {'FLUTTER_ROOT': sdk});
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout.toString().trim(), 'A FLUTTER run');
+    });
+
+    test('without FLUTTER_ROOT it uses the fvm SDK in the app folder before flutter on PATH', () {
+      final onPath = fakeBatSdk('path_sdk', 'PATH');
+      final dir = app('fvm_app');
+      packageConfig(dir, 'tidy_log');
+      fakeBatSdk(r'fvm_app\.fvm\flutter_sdk', 'FVM');
+
+      final result = launchBat(dir, ['run'], extraPath: '$onPath\\bin');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout.toString().trim(), 'FVM DART run tidy_log run');
+    });
+
+    test('FLUTTER_ROOT wins over the fvm SDK', () {
+      final root = fakeBatSdk('root_sdk', 'ROOT');
+      final dir = app('fvm_app');
+      packageConfig(dir, 'tidy_log');
+      fakeBatSdk(r'fvm_app\.fvm\flutter_sdk', 'FVM');
+
+      final result = launchBat(dir, ['run'], env: {'FLUTTER_ROOT': root});
+
+      expect(result.stdout.toString().trim(), 'ROOT DART run tidy_log run');
+    });
+
+    test('an .fvm folder without an SDK in it is skipped in favour of flutter on PATH', () {
+      final onPath = fakeBatSdk('path_sdk', 'PATH');
+      final dir = app('fvm_app');
+      packageConfig(dir, 'tidy_log');
+      Directory('$dir\\.fvm\\flutter_sdk').createSync(recursive: true);
+
+      final result = launchBat(dir, ['run'], extraPath: '$onPath\\bin');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout.toString().trim(), 'PATH DART run tidy_log run');
+    });
+
+    test('with no FLUTTER_ROOT, no fvm SDK and no flutter on PATH it fails with 127', () {
+      final result = launchBat(app('nothing'), ['run']);
+
+      expect(result.exitCode, 127);
+      expect(result.stderr.toString().trim(), 'tidy_log: flutter not found on PATH');
+      expect(result.stdout.toString(), isEmpty);
+    });
+
+    test('paths with %, & and spaces, and a ! in an argument, reach the SDK intact', () {
+      final sdk = fakeBatSdk('sdk 100% & co', 'A');
+      final dir = app('my app 5% & x');
+      packageConfig(dir, 'tidy_log');
+
+      final result = launchBat(dir, ['run', '--dart-define=GREETING=Hello!'], env: {'FLUTTER_ROOT': sdk});
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout.toString().trim(), 'A DART run tidy_log run --dart-define=GREETING=Hello!');
+    });
+  }, skip: Platform.isWindows ? false : 'cmd.exe is Windows only');
 
   group('batch launcher', () {
     test('uses CRLF line endings throughout', () {
@@ -150,6 +266,16 @@ void main() {
       final start = lines.indexOf(steps.first);
       expect(start, greaterThan(0), reason: lines.join('\n'));
       expect(lines.sublist(start, start + steps.length), steps);
+    });
+
+    test('names the SDK as %%TIDY_ROOT%% in its calls, and knows the 0.2.0 launcher that did not', () {
+      expect(batchLauncher, contains(r'call "%%TIDY_ROOT%%\bin\dart.bat" run tidy_log %*'));
+      expect(batchLauncher, contains(r'call "%%TIDY_ROOT%%\bin\flutter.bat" %*'));
+      final old = previousBatchLaunchers.single;
+      expect(old, contains('\r\ncall "%TIDY_ROOT%\\bin\\dart.bat" run tidy_log %*\r\nexit /b %errorlevel%\r\n'));
+      expect(old, isNot(contains('%%TIDY_ROOT%%')));
+      expect(old, isNot(contains('rem call expands')));
+      expect(old.split('\r\n'), hasLength(batchLauncher.split('\r\n').length - 2));
     });
 
     test('walks up to the nearest package config instead of reading only the current folder', () {
