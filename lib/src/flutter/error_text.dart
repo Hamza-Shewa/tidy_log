@@ -59,7 +59,8 @@ String? _inner(Object? error) {
   return text.isEmpty ? null : text;
 }
 
-String? _message(String? message) => message == null || message.isEmpty || message == 'null' ? null : message.split('\n').first;
+String? _message(String? message) =>
+    message == null || message.isEmpty || message == 'null' ? null : message.split('\n').first;
 
 String _seconds(Duration? d) {
   if (d == null) return '';
@@ -70,7 +71,10 @@ String _seconds(Duration? d) {
 /// The summary line and up to two hint lines; the rest of Flutter's
 /// explanation is the same every time and is left out.
 List<String> _flutter(FlutterError e) {
-  final lines = [for (final l in '$e'.split('\n')) if (l.trim().isNotEmpty) stripRenderIds(l.trim())];
+  final lines = [
+    for (final l in '$e'.split('\n'))
+      if (l.trim().isNotEmpty) stripRenderIds(l.trim()),
+  ];
   return lines.isEmpty ? ['FlutterError'] : lines.take(3).toList();
 }
 

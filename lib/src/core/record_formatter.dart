@@ -52,10 +52,7 @@ List<List<Span>> stackDetails(TrimmedStack stack, Level level, {String? hiddenNo
   final location = stack.location;
   if (location == null) return const [];
   final strong = level.index >= Level.error.index ? Tone.errorBold : level.messageTone;
-  final hidden = [
-    if (stack.hidden > 0) '… ${framesHidden(stack.hidden)}',
-    ?hiddenNote,
-  ].join(' · ');
+  final hidden = [if (stack.hidden > 0) '… ${framesHidden(stack.hidden)}', ?hiddenNote].join(' · ');
   return [
     [Span('at ${location.location}', strong), Span('  ${location.member}', Tone.secondary)],
     for (final frame in stack.trail) [Span('┊ ${frame.location}  ${frame.member}', Tone.dim)],

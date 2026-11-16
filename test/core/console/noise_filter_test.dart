@@ -30,8 +30,20 @@ void main() {
     ]) {
       expect(shows(quiet, line), isFalse, reason: line);
     }
-    expect(shows(quiet, 'I/Choreographer(1): Skipped 84 frames!  The application may be doing too much work on its main thread.'), isTrue);
-    expect(shows(quiet, 'I/flutter(1): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).'), isTrue);
+    expect(
+      shows(
+        quiet,
+        'I/Choreographer(1): Skipped 84 frames!  The application may be doing too much work on its main thread.',
+      ),
+      isTrue,
+    );
+    expect(
+      shows(
+        quiet,
+        'I/flutter(1): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).',
+      ),
+      isTrue,
+    );
   });
 
   test('all preset shows the same chatter', () {

@@ -41,10 +41,8 @@ final class JavaStack {
 
   /// `… 14 frames hidden · caused by IOException: decryption failed`, or an
   /// empty string when there is nothing to add.
-  String get note => [
-    if (frameCount > 1) '… ${framesHidden(frameCount - 1)}',
-    if (cause != null) 'caused by $cause',
-  ].join(' · ');
+  String get note =>
+      [if (frameCount > 1) '… ${framesHidden(frameCount - 1)}', if (cause != null) 'caused by $cause'].join(' · ');
 }
 
 /// Parses the lines of a Java stack trace. Returns null when no line is a
@@ -57,10 +55,7 @@ JavaStack? parseJavaStack(Iterable<String> lines) {
     for (final l in trimmed)
       if (l.startsWith('Caused by: ')) shortJavaException(l.substring('Caused by: '.length)),
   ];
-  final exception = trimmed.firstWhere(
-    (l) => !l.startsWith('Caused by: ') && _exception.hasMatch(l),
-    orElse: () => '',
-  );
+  final exception = trimmed.firstWhere((l) => !l.startsWith('Caused by: ') && _exception.hasMatch(l), orElse: () => '');
   return JavaStack._(
     exception: exception.isEmpty ? null : shortJavaException(exception),
     frame: frames.firstWhere((f) => !javaSdkPrefixes.any(f.startsWith), orElse: () => frames.first),

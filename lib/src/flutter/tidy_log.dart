@@ -104,7 +104,9 @@ abstract final class TidyLog {
         error: error,
         errorText: error == null ? null : _redactor.apply(described?.first ?? '$error'),
         stackTrace: stackTrace,
-        notes: [for (final note in [...?asMessage?.skip(1), ...?described?.skip(1)]) _redactor.apply(note)],
+        notes: [
+          for (final note in [...?asMessage?.skip(1), ...?described?.skip(1)]) _redactor.apply(note),
+        ],
       ),
     );
   }
@@ -155,7 +157,10 @@ abstract final class TidyLog {
         Entry(
           head: [
             Level.warning.labelSpan,
-            const Span('FlutterError.onError was already set. Call TidyLog.installErrorHooks() before your crash reporter.', Tone.warning),
+            const Span(
+              'FlutterError.onError was already set. Call TidyLog.installErrorHooks() before your crash reporter.',
+              Tone.warning,
+            ),
           ],
           source: 'tidy_log',
         ),

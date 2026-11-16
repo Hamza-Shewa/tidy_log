@@ -7,10 +7,7 @@ const launcherPath = '.vscode/tidy_flutter';
 const twinSuffix = ' (tidy logs)';
 
 /// The fields that route a Dart launch config through the tidy_log runner.
-const tidyToolFields = <String, Object>{
-  'customTool': '\${workspaceFolder}/$launcherPath',
-  'customToolReplacesArgs': 0,
-};
+const tidyToolFields = <String, Object>{'customTool': '\${workspaceFolder}/$launcherPath', 'customToolReplacesArgs': 0};
 const _windowsTool = '\${workspaceFolder}\\.vscode\\tidy_flutter.bat';
 
 /// The config written when the project has no Dart launch config yet.
@@ -127,9 +124,7 @@ String _insert(String source, _ArrayInfo array, List<Map<String, Object?>> twins
   final elementIndent = array.elements.isEmpty
       ? '$closeIndent  '
       : (_indentBefore(source, array.elements.first.start) ?? '$closeIndent  ');
-  final step = elementIndent.length > closeIndent.length
-      ? ' ' * (elementIndent.length - closeIndent.length)
-      : '  ';
+  final step = elementIndent.length > closeIndent.length ? ' ' * (elementIndent.length - closeIndent.length) : '  ';
   final encoder = JsonEncoder.withIndent(step);
   final blocks = [for (final t in twins) encoder.convert(t).replaceAll('\n', '\n$elementIndent')];
 
@@ -139,7 +134,8 @@ String _insert(String source, _ArrayInfo array, List<Map<String, Object?>> twins
   }
   final last = array.elements.last;
   final at = array.trailingComma ? last.commaEnd : last.end;
-  final text = '${array.trailingComma ? '' : ','}\n$elementIndent${blocks.join(',\n$elementIndent')}${array.trailingComma ? ',' : ''}';
+  final text =
+      '${array.trailingComma ? '' : ','}\n$elementIndent${blocks.join(',\n$elementIndent')}${array.trailingComma ? ',' : ''}';
   return source.replaceRange(at, at, text);
 }
 

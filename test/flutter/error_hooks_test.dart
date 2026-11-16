@@ -4,8 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tidy_log/tidy_log.dart';
 
-FlutterErrorDetails _details(String message, {StackTrace? stack, InformationCollector? info}) =>
-    FlutterErrorDetails(exception: FlutterError(message), stack: stack, library: 'widgets library', informationCollector: info);
+FlutterErrorDetails _details(String message, {StackTrace? stack, InformationCollector? info}) => FlutterErrorDetails(
+  exception: FlutterError(message),
+  stack: stack,
+  library: 'widgets library',
+  informationCollector: info,
+);
 
 final _frameworkStack = StackTrace.fromString('''
 #0      ListTile.debugCheck (package:flutter/src/material/list_tile.dart:900:7)

@@ -38,7 +38,10 @@ void main() {
   test('the clean copy drops the tag suffix of lines the in-app logger styled', () {
     final styled = const Renderer().render(entry).first;
     expect(const Renderer(color: false).render(Entry.raw(styled)), ['ERR boom']);
-    expect(const Renderer(color: false, includeSource: true).render(Entry.raw(styled)).single, endsWith('· FlutterSecureStorage  ×3'));
+    expect(
+      const Renderer(color: false, includeSource: true).render(Entry.raw(styled)).single,
+      endsWith('· FlutterSecureStorage  ×3'),
+    );
   });
 
   test('similar count adds a dim line', () {

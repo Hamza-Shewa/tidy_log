@@ -102,7 +102,13 @@ final class FlutterErrorFormatter {
     final after = text.substring(start);
     final match = _sourceLocation.firstMatch(after);
     if (match == null) return null;
-    final widget = after.split('\n').skip(1).firstWhere((l) => l.trim().isNotEmpty, orElse: () => '').trim().split(' ').first;
+    final widget = after
+        .split('\n')
+        .skip(1)
+        .firstWhere((l) => l.trim().isNotEmpty, orElse: () => '')
+        .trim()
+        .split(' ')
+        .first;
     final path = displayPath(Uri.parse(match[1]!), appPackage: appPackage);
     return FrameRef('$path:${match[2]}:${match[3]}', widget);
   }

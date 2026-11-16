@@ -47,12 +47,7 @@ TrimmedStack trimStack(Trace trace, {required List<String> projectPackages, int 
   if (index < 0) index = frames.indexWhere((f) => !isSdk(f));
   if (index < 0) index = 0;
 
-  final trail = frames
-      .skip(index + 1)
-      .where(isProject)
-      .take(maxTrail)
-      .map((f) => _ref(f, projectPackages))
-      .toList();
+  final trail = frames.skip(index + 1).where(isProject).take(maxTrail).map((f) => _ref(f, projectPackages)).toList();
   return TrimmedStack(
     location: _ref(frames[index], projectPackages),
     trail: trail,

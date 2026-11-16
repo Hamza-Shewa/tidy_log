@@ -57,12 +57,12 @@ SetupPlan planProjectSetup(Directory project, {bool remove = false}) {
 
   LaunchEdit edit;
   try {
-    edit = remove
-        ? (source == null ? const LaunchEdit('') : removeTidyTwins(source))
-        : addTidyTwins(source);
+    edit = remove ? (source == null ? const LaunchEdit('') : removeTidyTwins(source)) : addTidyTwins(source);
   } on LaunchJsonException catch (e) {
-    throw SetupException('Could not edit .vscode/launch.json: ${e.message}\nAdd this config by hand instead:\n'
-        '${_snippet()}');
+    throw SetupException(
+      'Could not edit .vscode/launch.json: ${e.message}\nAdd this config by hand instead:\n'
+      '${_snippet()}',
+    );
   }
   if (edit.changed) writes['.vscode/launch.json'] = edit.text;
   notes.addAll([

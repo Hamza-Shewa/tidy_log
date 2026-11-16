@@ -27,7 +27,11 @@ void main() {
     String contentType = 'application/json',
   }) async {
     final dio = Dio(BaseOptions(baseUrl: 'http://h'))
-      ..httpClientAdapter = FakeAdapter(status: status, body: body is String ? body : jsonEncode(body), contentType: contentType)
+      ..httpClientAdapter = FakeAdapter(
+        status: status,
+        body: body is String ? body : jsonEncode(body),
+        contentType: contentType,
+      )
       ..interceptors.add(TidyDioInterceptor(rules: rules, bodies: bodies));
     try {
       await dio.post<Object?>(path, data: {'pin': '1234'});
@@ -37,7 +41,10 @@ void main() {
     return printed;
   }
 
-  final success = ResponseRule.field('success', {true: HttpOutcome.success, false: HttpOutcome.error}, message: 'message');
+  final success = ResponseRule.field('success', {
+    true: HttpOutcome.success,
+    false: HttpOutcome.error,
+  }, message: 'message');
 
   group('ResponseRule.field', () {
     test('a 200 with success: false is logged as an error with its message', () async {
@@ -53,42 +60,57 @@ void main() {
     });
 
     test('enum values match case-insensitively; the message can be the first item of a list', () async {
-      final rule = ResponseRule.field(
-        'response_type',
-        {'SUCCESS': HttpOutcome.success, 'WARNING': HttpOutcome.warning, 'ERROR': HttpOutcome.error},
-        message: 'messages',
+      final rule = ResponseRule.field('response_type', {
+        'SUCCESS': HttpOutcome.success,
+        'WARNING': HttpOutcome.warning,
+        'ERROR': HttpOutcome.error,
+      }, message: 'messages');
+      final out = await call(
+        {
+          'response_type': 'warning',
+          'messages': ['Session expires in 2 minutes', 'second'],
+        },
+        rules: [rule],
       );
-      final out = await call({
-        'response_type': 'warning',
-        'messages': ['Session expires in 2 minutes', 'second'],
-      }, rules: [rule]);
       expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200 ! Session expires in 2 minutes'));
       expect(out[1], '    rule  response_type = "warning" → warning');
     });
 
     test('a number in the body matches a number or numeric text in the rule', () async {
       final rule = ResponseRule.field('type', {'2': HttpOutcome.error}, message: 'messages');
-      final out = await call({
-        'type': 2,
-        'messages': ['unvalid api sign'],
-      }, rules: [rule]);
+      final out = await call(
+        {
+          'type': 2,
+          'messages': ['unvalid api sign'],
+        },
+        rules: [rule],
+      );
       expect(out.first, contains('200 ✕ unvalid api sign'));
     });
 
     test('a dotted path reaches into nested objects and lists', () async {
-      final rule = ResponseRule.field('meta.errors.0.code', {'E_LIMIT': HttpOutcome.error}, message: 'meta.errors.0.text');
-      final out = await call({
-        'meta': {
-          'errors': [
-            {'code': 'E_LIMIT', 'text': 'Daily limit reached'},
-          ],
+      final rule = ResponseRule.field('meta.errors.0.code', {
+        'E_LIMIT': HttpOutcome.error,
+      }, message: 'meta.errors.0.text');
+      final out = await call(
+        {
+          'meta': {
+            'errors': [
+              {'code': 'E_LIMIT', 'text': 'Daily limit reached'},
+            ],
+          },
         },
-      }, rules: [rule]);
+        rules: [rule],
+      );
       expect(out.first, contains('200 ✕ Daily limit reached'));
     });
 
     test('a JSON body that arrives as text is decoded for the rule', () async {
-      final out = await call('{"success": false, "message": "plain text body"}', rules: [success], contentType: 'text/plain');
+      final out = await call(
+        '{"success": false, "message": "plain text body"}',
+        rules: [success],
+        contentType: 'text/plain',
+      );
       expect(out.first, contains('200 ✕ plain text body'));
     });
 
@@ -104,7 +126,9 @@ void main() {
     });
 
     test('when limits a rule to some requests', () async {
-      final rule = ResponseRule.field('success', {false: HttpOutcome.error}, when: (o) => o.path.startsWith('/api/Auth'));
+      final rule = ResponseRule.field('success', {
+        false: HttpOutcome.error,
+      }, when: (o) => o.path.startsWith('/api/Auth'));
       expect((await call({'success': false}, rules: [rule], path: '/api/other')).first, isNot(contains('✕')));
       printed.clear();
       expect((await call({'success': false}, rules: [rule])).first, contains('200 ✕'));
@@ -119,7 +143,10 @@ void main() {
     test('a missing field or a non-JSON body gives no verdict', () async {
       expect((await call({'other': 1}, rules: [success])).first, startsWith('POST /api/Auth/OpenSession  h  200  '));
       printed.clear();
-      expect((await call('<html>oops</html>', rules: [success], contentType: 'text/html')).first, isNot(contains('rule')));
+      expect(
+        (await call('<html>oops</html>', rules: [success], contentType: 'text/html')).first,
+        isNot(contains('rule')),
+      );
     });
 
     test('the first rule with a verdict wins', () async {
@@ -138,9 +165,16 @@ void main() {
   group('ResponseRule.custom', () {
     test('decides from the whole response', () async {
       final rule = ResponseRule.custom(
-        (r) => (r.data as Map)['errors'] != null ? const RuleVerdict(HttpOutcome.error, message: 'has errors', reason: 'errors present') : null,
+        (r) => (r.data as Map)['errors'] != null
+            ? const RuleVerdict(HttpOutcome.error, message: 'has errors', reason: 'errors present')
+            : null,
       );
-      final out = await call({'errors': ['x']}, rules: [rule]);
+      final out = await call(
+        {
+          'errors': ['x'],
+        },
+        rules: [rule],
+      );
       expect(out.first, contains('200 ✕ has errors'));
       expect(out[1], '    rule  errors present');
     });
@@ -157,13 +191,21 @@ void main() {
     TidyLog.configure(httpRules: [success]);
     expect((await call({'success': false})).first, contains('200 ✕'));
     printed.clear();
-    expect((await call({'success': false}, rules: const [])).first, isNot(contains('✕')), reason: 'an explicit empty list means no rules');
+    expect(
+      (await call({'success': false}, rules: const [])).first,
+      isNot(contains('✕')),
+      reason: 'an explicit empty list means no rules',
+    );
   });
 
   group('httpBodies', () {
     test('always (the default) prints body and resp for a success', () async {
       final out = await call({'ok': true});
-      expect(out, ['POST /api/Auth/OpenSession  h  200  ${out.first.split('200  ').last}', '    body  {pin: ••••••••}', '    resp  {ok: true}']);
+      expect(out, [
+        'POST /api/Auth/OpenSession  h  200  ${out.first.split('200  ').last}',
+        '    body  {pin: ••••••••}',
+        '    resp  {ok: true}',
+      ]);
     });
 
     test('onFailure hides them for a success and shows them for a failure', () async {

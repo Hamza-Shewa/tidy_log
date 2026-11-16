@@ -35,7 +35,9 @@ String findRealFlutterRoot({String? explicit, Map<String, String>? environment})
 
   if (explicit != null) {
     return resolve(explicit) ??
-        (throw ShimException('$explicit is not a Flutter SDK (no bin/$exe or bin/cache). Run flutter once to set it up.'));
+        (throw ShimException(
+          '$explicit is not a Flutter SDK (no bin/$exe or bin/cache). Run flutter once to set it up.',
+        ));
   }
   final candidates = <String>[
     ?env['FLUTTER_ROOT'],
@@ -60,7 +62,9 @@ String findRealFlutterRoot({String? explicit, Map<String, String>? environment})
 void createShim(String shimPath, String realRoot) {
   if (!Directory('$realRoot/bin').existsSync()) throw ShimException('$realRoot is not a Flutter SDK.');
   final shim = Directory(shimPath);
-  if (Directory(realRoot).absolute.path == shim.absolute.path) throw const ShimException('The shim cannot point at itself.');
+  if (Directory(realRoot).absolute.path == shim.absolute.path) {
+    throw const ShimException('The shim cannot point at itself.');
+  }
   if (shim.existsSync()) {
     if (!File('$shimPath/$shimMarker').existsSync()) {
       throw ShimException('$shimPath exists and is not a tidy_log shim. Choose another folder with --sdk-dir.');
@@ -116,7 +120,8 @@ void _link(String path, FileSystemEntity target) {
 String _shQuote(String s) => "'${s.replaceAll("'", r"'\''")}'";
 
 /// The shim's `bin/flutter` (macOS and Linux).
-String shimShellScript(String realRoot) => '''
+String shimShellScript(String realRoot) =>
+    '''
 #!/bin/sh
 # tidy_log shim, created by `dart run tidy_log:setup --sdk`.
 # Sends `flutter run` and `flutter attach` through tidy_log in projects that
@@ -141,7 +146,8 @@ exec "\$real/bin/flutter" "\$@"
 ''';
 
 /// The shim's `bin/flutter.bat` (Windows).
-String shimBatchScript(String realRoot) => '''
+String shimBatchScript(String realRoot) =>
+    '''
 @echo off
 rem tidy_log shim, created by `dart run tidy_log:setup --sdk`.
 rem Sends `flutter run` and `flutter attach` through tidy_log in projects that

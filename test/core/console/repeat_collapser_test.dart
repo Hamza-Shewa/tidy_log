@@ -29,7 +29,12 @@ void main() {
 
   test('does not merge the same text when it is not consecutive', () {
     final collapser = RepeatCollapser();
-    final out = [...collapser.add(line('a')), ...collapser.add(line('b')), ...collapser.add(line('a')), ...collapser.flush()];
+    final out = [
+      ...collapser.add(line('a')),
+      ...collapser.add(line('b')),
+      ...collapser.add(line('a')),
+      ...collapser.flush(),
+    ];
     expect(out.map((e) => e.repeat), [1, 1, 1]);
   });
 

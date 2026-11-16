@@ -16,7 +16,9 @@ String fakeSdk() {
   }
   File('$root/version').writeAsStringSync('3.47.5\n');
   for (final (name, label) in [('flutter', 'REAL_FLUTTER'), ('dart', 'REAL_DART')]) {
-    File('$root/bin/$name').writeAsStringSync('#!/bin/sh\necho "$label \$* | bin=\$TIDY_FLUTTER_BIN | root=\$FLUTTER_ROOT"\n');
+    File(
+      '$root/bin/$name',
+    ).writeAsStringSync('#!/bin/sh\necho "$label \$* | bin=\$TIDY_FLUTTER_BIN | root=\$FLUTTER_ROOT"\n');
     Process.runSync('chmod', ['+x', '$root/bin/$name']);
   }
   return Directory(root).resolveSymbolicLinksSync();
@@ -65,9 +67,14 @@ void main() {
     final tidy = project(withTidyLog: true);
     final plain = project(withTidyLog: false);
 
-    expect(shimFlutter(shim, ['run', '-d', 'emulator-5554'], project: tidy),
-        'REAL_DART run tidy_log run -d emulator-5554 | bin=$real/bin/flutter | root=$real');
-    expect(shimFlutter(shim, ['--no-color', 'attach'], project: tidy), startsWith('REAL_DART run tidy_log --no-color attach'));
+    expect(
+      shimFlutter(shim, ['run', '-d', 'emulator-5554'], project: tidy),
+      'REAL_DART run tidy_log run -d emulator-5554 | bin=$real/bin/flutter | root=$real',
+    );
+    expect(
+      shimFlutter(shim, ['--no-color', 'attach'], project: tidy),
+      startsWith('REAL_DART run tidy_log --no-color attach'),
+    );
     expect(shimFlutter(shim, ['run', '-d', 'x'], project: plain), startsWith('REAL_FLUTTER run -d x'));
   });
 
@@ -77,7 +84,12 @@ void main() {
     createShim(shim, real);
     final tidy = project(withTidyLog: true);
 
-    for (final args in [['--version'], ['pub', 'get'], ['daemon'], ['test', 'test/run_test.dart']]) {
+    for (final args in [
+      ['--version'],
+      ['pub', 'get'],
+      ['daemon'],
+      ['test', 'test/run_test.dart'],
+    ]) {
       expect(shimFlutter(shim, args, project: tidy), startsWith('REAL_FLUTTER ${args.join(' ')} |'));
     }
   });

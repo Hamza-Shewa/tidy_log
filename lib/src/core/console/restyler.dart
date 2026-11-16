@@ -104,7 +104,10 @@ final class Restyler {
 
   Entry _dartTrace(Block block, String? source) {
     final start = block.messages.indexWhere(_dartFrame.hasMatch);
-    final header = [for (final l in block.messages.take(start)) if (l.trim().isNotEmpty) l.trim()];
+    final header = [
+      for (final l in block.messages.take(start))
+        if (l.trim().isNotEmpty) l.trim(),
+    ];
     final title = header.isEmpty ? 'Stack trace' : header.first;
     final level = _errorWords.hasMatch(title) ? Level.error : Level.warning;
     final stack = trimStackText(
@@ -186,5 +189,4 @@ final class Restyler {
     text = text.replaceFirst(RegExp(r':\s*null$'), '').trim();
     return text.isEmpty || text == 'null' ? 'no response' : text;
   }
-
 }

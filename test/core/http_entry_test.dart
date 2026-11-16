@@ -49,7 +49,13 @@ void main() {
     });
 
     test('a warning is yellow with "!"; success with a verdict is dim', () {
-      final warning = httpEntry(method: 'GET', url: '/s', status: 200, outcome: HttpOutcome.warning, verdict: 'expires soon');
+      final warning = httpEntry(
+        method: 'GET',
+        url: '/s',
+        status: 200,
+        outcome: HttpOutcome.warning,
+        verdict: 'expires soon',
+      );
       expect(_statusCode(warning, '200'), '33');
       expect(_plain.render(warning).single, 'GET /s  200 ! expires soon');
 
@@ -59,7 +65,13 @@ void main() {
     });
 
     test('a long or multi-line verdict is shortened to one line', () {
-      final entry = httpEntry(method: 'GET', url: '/s', status: 200, outcome: HttpOutcome.error, verdict: 'line one\n${'x' * 200}');
+      final entry = httpEntry(
+        method: 'GET',
+        url: '/s',
+        status: 200,
+        outcome: HttpOutcome.error,
+        verdict: 'line one\n${'x' * 200}',
+      );
       final head = _plain.render(entry).single;
       expect(head, startsWith('GET /s  200 ✕ line one x'));
       expect(head, endsWith('…'));

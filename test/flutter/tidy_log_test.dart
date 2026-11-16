@@ -60,7 +60,10 @@ void main() {
   test('projectPackages decides which frames lead', () {
     TidyLog.configure(color: false, projectPackages: ['other']);
     TidyLog.e('boom', stackTrace: _stack);
-    expect(printed[1], '    at package:app/app/view/home_page.dart:145:12  HomePage._onTap',
-        reason: 'no "other" frame, so the first non-SDK frame is used');
+    expect(
+      printed[1],
+      '    at package:app/app/view/home_page.dart:145:12  HomePage._onTap',
+      reason: 'no "other" frame, so the first non-SDK frame is used',
+    );
   });
 }

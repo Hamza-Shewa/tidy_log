@@ -43,7 +43,11 @@ TidyConfig loadConfig(Directory dir, {bool? color}) {
   final name = pubspec.existsSync()
       ? (RegExp(r'^name:\s*(\S+)', multiLine: true).firstMatch(pubspec.readAsStringSync())?[1])
       : null;
-  return TidyConfig.fromYaml(yamlFile.existsSync() ? yamlFile.readAsStringSync() : null, appPackage: name, color: color);
+  return TidyConfig.fromYaml(
+    yamlFile.existsSync() ? yamlFile.readAsStringSync() : null,
+    appPackage: name,
+    color: color,
+  );
 }
 
 /// Finds the real `flutter`, never this wrapper itself.
@@ -101,11 +105,7 @@ Future<int> _run(String flutter, List<String> args, TidyConfig config) async {
     copy = null;
   }
 
-  final router = OutputRouter(
-    pipeline: ConsolePipeline(config),
-    styled: stdout.writeln,
-    plain: copy?.writeln,
-  );
+  final router = OutputRouter(pipeline: ConsolePipeline(config), styled: stdout.writeln, plain: copy?.writeln);
   Timer? idle;
   void scheduleFlush() {
     idle?.cancel();
@@ -118,13 +118,11 @@ Future<int> _run(String flutter, List<String> args, TidyConfig config) async {
       signal.watch().listen((s) => process.kill(s)),
   ];
 
-  final out = process.stdout
-      .transform(const Utf8Decoder(allowMalformed: true))
-      .transform(const LineSplitter())
-      .listen((line) {
-        if (router.add(line)) scheduleFlush();
-      })
-      .asFuture<void>();
+  final out = process.stdout.transform(const Utf8Decoder(allowMalformed: true)).transform(const LineSplitter()).listen((
+    line,
+  ) {
+    if (router.add(line)) scheduleFlush();
+  }).asFuture<void>();
   final err = stderr.addStream(process.stderr);
 
   final code = await process.exitCode;

@@ -17,14 +17,20 @@ Caused by: java.io.IOException: decryption failed
       final stack = parseJavaStack(handlerThrow.split('\n'))!;
 
       expect(stack.exception, 'IllegalStateException: Keystore entry missing');
-      expect(stack.frame, r'dev.tidylog.tidy_log_sample.MainActivity.configureFlutterEngine$lambda$0(MainActivity.kt:35)');
+      expect(
+        stack.frame,
+        r'dev.tidylog.tidy_log_sample.MainActivity.configureFlutterEngine$lambda$0(MainActivity.kt:35)',
+      );
       expect(stack.frameCount, 3);
       expect(stack.cause, 'IOException: decryption failed');
       expect(stack.note, '… 2 frames hidden · caused by IOException: decryption failed');
     });
 
     test('falls back to the top frame when every frame is SDK code', () {
-      final stack = parseJavaStack(['java.lang.NullPointerException', '  at android.os.Handler.handleCallback(Handler.java:1095)'])!;
+      final stack = parseJavaStack([
+        'java.lang.NullPointerException',
+        '  at android.os.Handler.handleCallback(Handler.java:1095)',
+      ])!;
       expect(stack.frame, 'android.os.Handler.handleCallback(Handler.java:1095)');
       expect(stack.note, isEmpty, reason: 'one frame, no cause');
     });
@@ -35,18 +41,26 @@ Caused by: java.io.IOException: decryption failed
   });
 
   test('shortJavaException drops the package and a trailing colon', () {
-    expect(shortJavaException('android.os.RemoteException: Remote stack trace:'), 'RemoteException: Remote stack trace');
+    expect(
+      shortJavaException('android.os.RemoteException: Remote stack trace:'),
+      'RemoteException: Remote stack trace',
+    );
     expect(shortJavaException('not an exception'), 'not an exception');
   });
 
   group('Flutter follow-on errors', () {
     test('stripRenderIds removes ids, relayout boundaries and dirty flags', () {
       expect(
-        stripRenderIds('RenderBox was not laid out: RenderIgnorePointer#4907d relayoutBoundary=up10 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE'),
+        stripRenderIds(
+          'RenderBox was not laid out: RenderIgnorePointer#4907d relayoutBoundary=up10 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE',
+        ),
         'RenderBox was not laid out: RenderIgnorePointer',
       );
       expect(stripRenderIds('RenderViewport#0c59b NEEDS-PAINT'), 'RenderViewport');
-      expect(stripRenderIds('A RenderFlex overflowed by 268 pixels on the right.'), 'A RenderFlex overflowed by 268 pixels on the right.');
+      expect(
+        stripRenderIds('A RenderFlex overflowed by 268 pixels on the right.'),
+        'A RenderFlex overflowed by 268 pixels on the right.',
+      );
     });
 
     test('isFollowOnError matches side-effect errors only', () {

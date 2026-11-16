@@ -41,8 +41,14 @@ void main() {
         connectTimeout: const Duration(seconds: 2),
         receiveTimeout: const Duration(milliseconds: 1500),
       );
-      expect(errorLine(_dio(DioExceptionType.receiveTimeout, options: timeouts)), '    DioException · receive timeout (1,500 ms)');
-      expect(errorLine(_dio(DioExceptionType.connectionTimeout, options: timeouts)), '    DioException · connect timeout (2 s)');
+      expect(
+        errorLine(_dio(DioExceptionType.receiveTimeout, options: timeouts)),
+        '    DioException · receive timeout (1,500 ms)',
+      );
+      expect(
+        errorLine(_dio(DioExceptionType.connectionTimeout, options: timeouts)),
+        '    DioException · connect timeout (2 s)',
+      );
       expect(errorLine(_dio(DioExceptionType.badResponse, status: 500)), '    DioException · bad response 500');
       expect(errorLine(_dio(DioExceptionType.cancel)), '    DioException · cancelled');
       expect(errorLine(_dio(DioExceptionType.badCertificate)), '    DioException · bad certificate');
@@ -50,20 +56,39 @@ void main() {
 
     test('connection errors name the socket failure, without the OS error', () {
       final refused = SocketException('Connection refused', osError: const OSError('Connection refused', 111), port: 9);
-      final lookup = SocketException("Failed host lookup: 'api.sample.invalid'", osError: const OSError('No address', 7));
-      expect(errorLine(_dio(DioExceptionType.connectionError, error: refused)), '    DioException · connection refused');
-      expect(errorLine(_dio(DioExceptionType.connectionError, error: lookup)), '    DioException · host lookup failed: api.sample.invalid');
+      final lookup = SocketException(
+        "Failed host lookup: 'api.sample.invalid'",
+        osError: const OSError('No address', 7),
+      );
+      expect(
+        errorLine(_dio(DioExceptionType.connectionError, error: refused)),
+        '    DioException · connection refused',
+      );
+      expect(
+        errorLine(_dio(DioExceptionType.connectionError, error: lookup)),
+        '    DioException · host lookup failed: api.sample.invalid',
+      );
     });
 
     test('an unknown error shows the wrapped error instead of "null"', () {
-      final error = _dio(DioExceptionType.unknown, error: const FormatException('Unexpected end of input (at offset 19)'));
+      final error = _dio(
+        DioExceptionType.unknown,
+        error: const FormatException('Unexpected end of input (at offset 19)'),
+      );
       expect(errorLine(error), '    DioException · FormatException: Unexpected end of input (at offset 19)');
     });
   });
 
   group('PlatformException', () {
     test('code and message, then the details', () {
-      TidyLog.e('Card reader failed', error: PlatformException(code: 'UNAVAILABLE', message: 'Card reader is not connected.', details: {'retryable': true}));
+      TidyLog.e(
+        'Card reader failed',
+        error: PlatformException(
+          code: 'UNAVAILABLE',
+          message: 'Card reader is not connected.',
+          details: {'retryable': true},
+        ),
+      );
       expect(printed, [
         'ERR Card reader failed',
         '    PlatformException(UNAVAILABLE): Card reader is not connected.',
@@ -77,7 +102,10 @@ java.lang.IllegalStateException: Keystore entry missing
 	at dev.tidylog.sample.MainActivity.handle(MainActivity.kt:35)
 	at io.flutter.plugin.common.MethodChannel\$IncomingMethodCallHandler.onMessage(MethodChannel.java:267)
 Caused by: java.io.IOException: decryption failed''';
-      TidyLog.e('Keystore failed', error: PlatformException(code: 'error', message: 'Keystore entry missing', stacktrace: stacktrace));
+      TidyLog.e(
+        'Keystore failed',
+        error: PlatformException(code: 'error', message: 'Keystore entry missing', stacktrace: stacktrace),
+      );
       expect(printed, [
         'ERR Keystore failed',
         '    PlatformException(error): Keystore entry missing',
@@ -89,11 +117,19 @@ Caused by: java.io.IOException: decryption failed''';
 
   test('an uncaught FlutterError keeps its summary and two hint lines, not the whole essay', () {
     final error = FlutterError.fromParts([
-      ErrorSummary('setState() called after dispose(): _LateSetStatePageState#1a2b3(lifecycle state: defunct, not mounted)'),
-      ErrorDescription('This error happens if you call setState() on a State object for a widget that no longer appears in the widget tree.'),
-      ErrorHint('The preferred solution is to cancel the timer or stop listening to the animation in the dispose() callback.'),
+      ErrorSummary(
+        'setState() called after dispose(): _LateSetStatePageState#1a2b3(lifecycle state: defunct, not mounted)',
+      ),
+      ErrorDescription(
+        'This error happens if you call setState() on a State object for a widget that no longer appears in the widget tree.',
+      ),
+      ErrorHint(
+        'The preferred solution is to cancel the timer or stop listening to the animation in the dispose() callback.',
+      ),
       ErrorHint('Another solution is to check the "mounted" property of this object before calling setState().'),
-      ErrorHint('This error might indicate a memory leak if setState() is being called because another object is retaining a reference.'),
+      ErrorHint(
+        'This error might indicate a memory leak if setState() is being called because another object is retaining a reference.',
+      ),
     ]);
     TidyLog.e(error, tag: 'uncaught');
     expect(printed, [
@@ -126,7 +162,11 @@ Caused by: java.io.IOException: decryption failed''';
       fakeAsync((async) {
         final formatter = FlutterErrorFormatter();
         formatter.present(details('Vertical viewport was given unbounded height.'));
-        for (final name in ['RenderViewport#0c59b NEEDS-PAINT', 'RenderFlex#96b54 relayoutBoundary=up1 NEEDS-PAINT', 'RenderClipRect#111a3']) {
+        for (final name in [
+          'RenderViewport#0c59b NEEDS-PAINT',
+          'RenderFlex#96b54 relayoutBoundary=up1 NEEDS-PAINT',
+          'RenderClipRect#111a3',
+        ]) {
           formatter.present(details('RenderBox was not laid out: $name'));
           async.elapse(const Duration(milliseconds: 100));
         }
@@ -140,7 +180,9 @@ Caused by: java.io.IOException: decryption failed''';
 
     test('a follow-on error with no root error before it is printed, without render ids', () {
       fakeAsync((async) {
-        FlutterErrorFormatter().present(details('RenderBox was not laid out: RenderViewport#0c59b NEEDS-LAYOUT NEEDS-PAINT'));
+        FlutterErrorFormatter().present(
+          details('RenderBox was not laid out: RenderViewport#0c59b NEEDS-LAYOUT NEEDS-PAINT'),
+        );
         async.elapse(const Duration(seconds: 1));
         expect(printed.first, startsWith('ERR RenderBox was not laid out: RenderViewport'));
         expect(printed.first, isNot(contains('#0c59b')));

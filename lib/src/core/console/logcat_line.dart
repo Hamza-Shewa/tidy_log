@@ -22,11 +22,6 @@ final class LogcatLine {
   static LogcatLine? tryParse(String line) {
     final m = _pattern.firstMatch(line);
     if (m == null) return null;
-    return LogcatLine(
-      level: Level.fromLogcat(m[1]!),
-      tag: m[2]!,
-      pid: int.parse(m[3]!),
-      message: m[4]!,
-    );
+    return LogcatLine(level: Level.fromLogcat(m[1]!), tag: m[2]!, pid: int.parse(m[3]!), message: m[4]!);
   }
 }

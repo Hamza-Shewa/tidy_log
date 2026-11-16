@@ -32,8 +32,9 @@ const _withFlavors = '''
 }
 ''';
 
-List<Map<String, Object?>> configs(String text) =>
-    [for (final c in (jsonDecode(stripJsonc(text)) as Map)['configurations'] as List) (c as Map).cast<String, Object?>()];
+List<Map<String, Object?>> configs(String text) => [
+  for (final c in (jsonDecode(stripJsonc(text)) as Map)['configurations'] as List) (c as Map).cast<String, Object?>(),
+];
 
 void main() {
   group('addTidyTwins', () {
@@ -54,7 +55,13 @@ void main() {
       expect(dev['program'], 'lib/main_dev.dart');
       expect(dev['args'], ['--flavor', 'dev', '--dart-define=URL=https://dev.example.test']);
       expect(dev['customTool'], r'${workspaceFolder}/.vscode/tidy_flutter');
-      expect(configs(edit.text).map((c) => c['name']), ['dev', 'attach', 'Chrome', 'dev (tidy logs)', 'attach (tidy logs)']);
+      expect(configs(edit.text).map((c) => c['name']), [
+        'dev',
+        'attach',
+        'Chrome',
+        'dev (tidy logs)',
+        'attach (tidy logs)',
+      ]);
     });
 
     test('the original text is kept byte for byte, comments included', () {

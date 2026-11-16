@@ -27,7 +27,10 @@ void main() {
     });
 
     test('keeps leading whitespace after the single separator space', () {
-      expect(LogcatLine.tryParse('W/System.err(31131):    at java.net.X(X.java:1)')!.message, '   at java.net.X(X.java:1)');
+      expect(
+        LogcatLine.tryParse('W/System.err(31131):    at java.net.X(X.java:1)')!.message,
+        '   at java.net.X(X.java:1)',
+      );
       expect(LogcatLine.tryParse('W/FlutterDefender(31800): ')!.message, '');
     });
 

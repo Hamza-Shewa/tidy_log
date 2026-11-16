@@ -11,14 +11,10 @@ import '../core/renderer.dart';
 /// output, which runs through the [ConsolePipeline]. Each resulting entry is
 /// written styled to [styled] and as plain text to [plain] (the clean copy).
 final class OutputRouter {
-  OutputRouter({
-    required this.pipeline,
-    required this.styled,
-    this.plain,
-    Renderer? styledRenderer,
-  }) : _styledRenderer =
-           styledRenderer ?? Renderer(color: pipeline.config.color, maxHeadWidth: pipeline.config.maxWidth),
-       _plainRenderer = const Renderer(color: false);
+  OutputRouter({required this.pipeline, required this.styled, this.plain, Renderer? styledRenderer})
+    : _styledRenderer =
+          styledRenderer ?? Renderer(color: pipeline.config.color, maxHeadWidth: pipeline.config.maxWidth),
+      _plainRenderer = const Renderer(color: false);
 
   final ConsolePipeline pipeline;
   final void Function(String line) styled;

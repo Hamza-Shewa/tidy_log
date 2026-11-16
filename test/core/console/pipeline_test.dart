@@ -16,19 +16,23 @@ void main() {
   });
 
   test('collapses a run of identical native lines into one line with ×N', () {
-    final out = squash(clean([for (var i = 0; i < 30; i++) 'D/FlutterJNI(7): Sending viewport metrics to the engine.']));
+    final out = squash(
+      clean([for (var i = 0; i < 30; i++) 'D/FlutterJNI(7): Sending viewport metrics to the engine.']),
+    );
     expect(out.last, 'DBG Sending viewport metrics to the engine.  · FlutterJNI  ×30');
     expect(out, hasLength(2));
   });
 
   test('follow-on layout errors after the root error fold into one line, without render ids', () {
-    final out = squash(clean([
-      'Another exception was thrown: Vertical viewport was given unbounded height.',
-      'Another exception was thrown: RenderBox was not laid out: RenderViewport#0c59b NEEDS-LAYOUT NEEDS-PAINT',
-      'Another exception was thrown: RenderBox was not laid out: RenderIgnorePointer#4907d relayoutBoundary=up10 NEEDS-PAINT',
-      'Another exception was thrown: RenderBox was not laid out: RenderFlex#96b54 relayoutBoundary=up1 NEEDS-PAINT',
-      'I/flutter (1): >>> next',
-    ]));
+    final out = squash(
+      clean([
+        'Another exception was thrown: Vertical viewport was given unbounded height.',
+        'Another exception was thrown: RenderBox was not laid out: RenderViewport#0c59b NEEDS-LAYOUT NEEDS-PAINT',
+        'Another exception was thrown: RenderBox was not laid out: RenderIgnorePointer#4907d relayoutBoundary=up10 NEEDS-PAINT',
+        'Another exception was thrown: RenderBox was not laid out: RenderFlex#96b54 relayoutBoundary=up1 NEEDS-PAINT',
+        'I/flutter (1): >>> next',
+      ]),
+    );
     expect(out, [
       'ERR Vertical viewport was given unbounded height.  · thrown again',
       'ERR RenderBox was not laid out: RenderViewport  · thrown again',
@@ -120,11 +124,9 @@ void main() {
   });
 
   test('marks a new process with a divider and tags lines from the old one', () {
-    final out = squash(clean([
-      'I/flutter (100): first',
-      'I/flutter (200): second',
-      'W/System.err(100): late line from the old process',
-    ]));
+    final out = squash(
+      clean(['I/flutter (100): first', 'I/flutter (200): second', 'W/System.err(100): late line from the old process']),
+    );
     expect(out, [
       '──────── app started · pid 100 ────────',
       '    first',
@@ -144,6 +146,9 @@ void main() {
 
   test('custom rules label matching Dart lines', () {
     final config = TidyConfig.fromYaml('rules:\n  - match: "^Svg"\n    label: SVG\n    tone: warning\n');
-    expect(clean(['I/flutter (1): Svg loader: unhandled element'], config: config).last, 'SVG Svg loader: unhandled element');
+    expect(
+      clean(['I/flutter (1): Svg loader: unhandled element'], config: config).last,
+      'SVG Svg loader: unhandled element',
+    );
   });
 }

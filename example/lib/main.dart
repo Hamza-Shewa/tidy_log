@@ -45,7 +45,8 @@ class DemoPage extends StatefulWidget {
 }
 
 class _DemoPageState extends State<DemoPage> {
-  late final Dio _dio = widget.dio ??
+  late final Dio _dio =
+      widget.dio ??
       (Dio(BaseOptions(connectTimeout: const Duration(seconds: 2)))
         ..interceptors.add(useTidy ? TidyDioInterceptor() : LogInterceptor(requestBody: true, responseBody: true)));
   String _status = 'Tap a button and watch the Debug Console.';

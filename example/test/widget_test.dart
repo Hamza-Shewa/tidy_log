@@ -15,7 +15,13 @@ void main() {
   testWidgets('shows every demo action and the starting hint', (tester) async {
     await tester.pumpWidget(const ExampleApp());
     expect(find.text('Tap a button and watch the Debug Console.'), findsOneWidget);
-    for (final label in ['Log each level', 'Log a caught error', 'Throw in a tap handler', 'Throw an async error', 'Call a failing API']) {
+    for (final label in [
+      'Log each level',
+      'Log a caught error',
+      'Throw in a tap handler',
+      'Throw an async error',
+      'Call a failing API',
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
   });
@@ -25,7 +31,11 @@ void main() {
     await tester.tap(find.text('Log each level'));
     await tester.pump();
 
-    expect(printed.map((l) => l.split('  ').first), ['DBG Loaded 12 accounts', 'INF Signed in {userId: 7, pin: ••••••••}', 'WRN Token expires in 30 s']);
+    expect(printed.map((l) => l.split('  ').first), [
+      'DBG Loaded 12 accounts',
+      'INF Signed in {userId: 7, pin: ••••••••}',
+      'WRN Token expires in 30 s',
+    ]);
     expect(find.text('Logged one line per level.'), findsOneWidget);
   });
 

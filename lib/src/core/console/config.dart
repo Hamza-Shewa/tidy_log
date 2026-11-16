@@ -79,7 +79,16 @@ final class TidyConfig {
     this.rules = const [],
   });
 
-  static const defaultRedactKeys = <String>['pin', 'password', 'passcode', 'otp', 'token', 'secret', 'cvv', 'authorization'];
+  static const defaultRedactKeys = <String>[
+    'pin',
+    'password',
+    'passcode',
+    'otp',
+    'token',
+    'secret',
+    'cvv',
+    'authorization',
+  ];
 
   final Preset preset;
   final List<String> hideTags;

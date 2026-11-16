@@ -24,7 +24,8 @@ Map<String, String> snapshot(Directory dir) => {
 };
 
 const _pubspec = 'name: my_app\ndev_dependencies:\n  tidy_log: ^0.1.0\n';
-const _launch = '{\n  // mine\n  "configurations": [\n    {"name": "dev", "type": "dart", "request": "launch"}\n  ]\n}\n';
+const _launch =
+    '{\n  // mine\n  "configurations": [\n    {"name": "dev", "type": "dart", "request": "launch"}\n  ]\n}\n';
 
 int run(Directory dir, List<String> args, StringBuffer out) {
   final sink = _BufferSink(out);
@@ -104,11 +105,16 @@ void main() {
     final real = findRealFlutterRoot();
     final out = StringBuffer();
 
-    expect(runSetup(['--sdk', '--sdk-dir', shim, '--flutter-root', real], project: dir, out: _BufferSink(out)), 0,
-        reason: 'flutter root: $real');
+    expect(
+      runSetup(['--sdk', '--sdk-dir', shim, '--flutter-root', real], project: dir, out: _BufferSink(out)),
+      0,
+      reason: 'flutter root: $real',
+    );
     expect(File('$shim/bin/flutter').existsSync(), isTrue);
     expect(out.toString(), contains('Flutter SDK path: $shim'));
-    expect(snapshot(dir).keys.where((k) => !k.startsWith('shim/')), ['pubspec.yaml'], reason: 'the project is not touched');
+    expect(snapshot(dir).keys.where((k) => !k.startsWith('shim/')), [
+      'pubspec.yaml',
+    ], reason: 'the project is not touched');
 
     expect(runSetup(['--sdk', '--remove', '--sdk-dir', shim], project: dir, out: _BufferSink(StringBuffer())), 0);
     expect(Directory(shim).existsSync(), isFalse);
@@ -119,7 +125,14 @@ void main() {
     final real = findRealFlutterRoot();
     final out = StringBuffer();
 
-    expect(runSetup(['--sdk', '--dry-run', '--sdk-dir', '${dir.path}/shim', '--flutter-root', real], project: dir, out: _BufferSink(out)), 0);
+    expect(
+      runSetup(
+        ['--sdk', '--dry-run', '--sdk-dir', '${dir.path}/shim', '--flutter-root', real],
+        project: dir,
+        out: _BufferSink(out),
+      ),
+      0,
+    );
     expect(out.toString(), contains('would create ${dir.path}/shim'));
     expect(Directory('${dir.path}/shim').existsSync(), isFalse);
     expect(run(dir, ['--sdk', '--sdk-dir'], StringBuffer()), 64);

@@ -10,7 +10,8 @@ library;
 const _header = 'Added by `dart run tidy_log:setup`: runs flutter through tidy_log\'s log cleaner.';
 
 /// `.vscode/tidy_flutter` (macOS and Linux).
-const shellLauncher = '''
+const shellLauncher =
+    '''
 #!/bin/sh
 # $_header
 # Falls back to plain flutter until `flutter pub get` has resolved tidy_log.
@@ -29,7 +30,8 @@ exec "\$root/bin/flutter" "\$@"
 ''';
 
 /// `.vscode/tidy_flutter.bat` (Windows).
-const batchLauncher = '''
+const batchLauncher =
+    '''
 @echo off
 rem $_header
 rem Falls back to plain flutter until `flutter pub get` has resolved tidy_log.

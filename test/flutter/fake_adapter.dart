@@ -12,11 +12,19 @@ final class FakeAdapter implements HttpClientAdapter {
   final String contentType;
 
   @override
-  Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
     if (error != null) throw error!;
-    return ResponseBody.fromString(body, status, headers: {
-      Headers.contentTypeHeader: [contentType],
-    });
+    return ResponseBody.fromString(
+      body,
+      status,
+      headers: {
+        Headers.contentTypeHeader: [contentType],
+      },
+    );
   }
 
   @override
