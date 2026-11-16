@@ -1,7 +1,14 @@
 name: tidy_log
-description: Styled, readable debug console logs for Flutter. Errors lead with where they happened, stack traces are trimmed to your own frames, and Dio calls get one compact line.
+description: Readable Flutter debug logs. Location-first errors, folded native logcat noise, one-line Dio calls with secrets masked. Works in VS Code, Android Studio and the terminal.
 version: 0.1.0
-publish_to: none
+repository: https://github.com/Hamza-Shewa/tidy_log
+issue_tracker: https://github.com/Hamza-Shewa/tidy_log/issues
+topics:
+  - logging
+  - debugging
+  - console
+  - vscode
+  - android
 
 environment:
   sdk: ^3.8.0

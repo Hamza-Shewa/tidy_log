@@ -4,10 +4,17 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:tidy_log/tidy_log.dart';
 
+/// `--dart-define=TIDY=false` runs the demo the way a typical app logs
+/// (debugPrint, Dio's LogInterceptor, Flutter's default error box), for a
+/// before/after comparison.
+const useTidy = bool.fromEnvironment('TIDY', defaultValue: true);
+
 void main() {
-  TidyLog.configure(projectPackages: ['tidy_log_example']);
-  // Before any crash reporter, so it calls the tidy formatter.
-  TidyLog.installErrorHooks();
+  if (useTidy) {
+    TidyLog.configure(projectPackages: ['tidy_log_example']);
+    // Before any crash reporter, so it calls the tidy formatter.
+    TidyLog.installErrorHooks();
+  }
   runApp(const ExampleApp());
 }
 
@@ -39,13 +46,21 @@ class DemoPage extends StatefulWidget {
 
 class _DemoPageState extends State<DemoPage> {
   late final Dio _dio = widget.dio ??
-      (Dio(BaseOptions(connectTimeout: const Duration(seconds: 2)))..interceptors.add(TidyDioInterceptor()));
+      (Dio(BaseOptions(connectTimeout: const Duration(seconds: 2)))
+        ..interceptors.add(useTidy ? TidyDioInterceptor() : LogInterceptor(requestBody: true, responseBody: true)));
   String _status = 'Tap a button and watch the Debug Console.';
 
+  void _log(Level level, String message, {String? tag, Object? error, StackTrace? stack}) {
+    if (useTidy) return TidyLog.log(level, message, tag: tag, error: error, stackTrace: stack);
+    debugPrint('[$tag] $message');
+    if (error != null) debugPrint('$error');
+    if (stack != null) debugPrint('$stack');
+  }
+
   void _logLevels() {
-    TidyLog.d('Loaded 12 accounts', tag: 'AccountsRepo');
-    TidyLog.i('Signed in {userId: 7, pin: 1234}', tag: 'Auth');
-    TidyLog.w('Token expires in 30 s', tag: 'Auth');
+    _log(Level.debug, 'Loaded 12 accounts', tag: 'AccountsRepo');
+    _log(Level.info, 'Signed in {userId: 7, pin: 1234}', tag: 'Auth');
+    _log(Level.warning, 'Token expires in 30 s', tag: 'Auth');
     _setStatus('Logged one line per level.');
   }
 
@@ -53,7 +68,7 @@ class _DemoPageState extends State<DemoPage> {
     try {
       _parseAmount('12,5');
     } catch (error, stack) {
-      TidyLog.e('Could not parse the amount', tag: 'Transfer', error: error, stackTrace: stack);
+      _log(Level.error, 'Could not parse the amount', tag: 'Transfer', error: error, stack: stack);
     }
     _setStatus('Logged a caught error with its location.');
   }

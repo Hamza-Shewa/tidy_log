@@ -1,0 +1,6 @@
+# pub reads this file instead of .gitignore, so the ignore rules are repeated here.
+build/
+.dart_tool/
+/pubspec.lock
+# Not part of the published package: the scenario bench used for development.
+sample_app/
