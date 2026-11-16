@@ -1,6 +1,49 @@
 # tidy_log
 
-Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or a terminal.
+Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or a terminal: errors open with where they happened, native logcat noise is cleaned up, and each HTTP call is one coloured line.
+
+## Quick start
+
+**1. Install**
+
+```bash
+flutter pub add dev:tidy_log
+```
+
+Use `flutter pub add tidy_log` (not `dev:`) if your app code will call `TidyLog` or `TidyDioInterceptor`.
+
+**2. Run**
+
+| You run the app from | Set up once | Then run |
+|---|---|---|
+| A terminal | nothing | `dart run tidy_log run -d <device>` (any `flutter run` flags) |
+| VS Code | `dart run tidy_log:setup` | Run and Debug → pick a "(tidy logs)" config → F5 |
+| Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` | Settings → Languages & Frameworks → Flutter → SDK path = the folder it prints, then Run as usual |
+
+Works on macOS and Linux. The Windows launchers are included but untested. The native cleanup is for Android; on iOS the in-app logger still works.
+
+**3. HTTP calls (Dio)**
+
+| Who logs the HTTP call | What to add | Where "200, but it failed" rules go |
+|---|---|---|
+| Your own `Dio` client | `dio.interceptors.add(TidyDioInterceptor())` | `TidyDioInterceptor(rules: [...])` in Dart |
+| A package that prints pretty_dio_logger boxes (`╔╣ Request ║ GET`) | nothing: the runner folds each call into one line | `http_rules:` in `tidy_log.yaml` in the app root |
+
+Rules for common response bodies:
+
+| Your API answers | Rule in Dart | Rule in `tidy_log.yaml` (under `http_rules:`) |
+|---|---|---|
+| `{"success": false, "message": "…"}` | `ResponseRule.field('success', {true: HttpOutcome.success, false: HttpOutcome.error}, message: 'message')` | `- {field: success, values: {true: success, false: error}, message: message}` |
+| `{"type": 3, "messages": ["…"]}`, where only `type: 1` is a success | `ResponseRule.field('type', {1: HttpOutcome.success}, otherwise: HttpOutcome.error, message: 'messages')` | `- {field: type, values: {1: success}, otherwise: error, message: messages}` |
+| `{"status": "WARNING", "message": "…"}` | `ResponseRule.field('status', {'OK': HttpOutcome.success, 'WARNING': HttpOutcome.warning}, otherwise: HttpOutcome.error, message: 'message')` | `- {field: status, values: {OK: success, WARNING: warning}, otherwise: error, message: message}` |
+
+Status colours: green 2xx, light yellow 3xx, yellow 4xx, magenta 5xx, and red when a rule says a call failed (`200 ✕`, with the reason on the next line).
+
+That's all you need. Everything below is detail.
+
+---
+
+## What it does
 
 - Errors open with **where** they happened (`at lib/app/view/home_page.dart:145:12  HomePage._onTap`, the location in blue so it stands out), followed by a short dimmed trail of your own frames and a count of hidden frames.
 - Native logcat lines lose their `D/WindowOnBackDispatcher(31800):` prefix. The tag moves to a dim suffix in a fixed column, and the level becomes a coloured `DBG / INF / WRN / ERR` label. In a terminal, lines are fitted to the window instead of wrapping.
@@ -32,23 +75,11 @@ ERR Error refreshing session: unvalid api sign .....en-US
 
 **Before and after:** the same demo session is 104 lines with `flutter run` and 22 with tidy_log. Both logs are in full on [the example page](example/README.md) (the **Example** tab on pub.dev).
 
-## Setup
+## Setup in detail
 
-```bash
-flutter pub add dev:tidy_log
-```
-
-Then, depending on where you run your app:
-
-| You run the app from | Do this once | Then |
-|---|---|---|
-| A terminal | nothing | `dart run tidy_log run -d <device>` instead of `flutter run -d <device>` (every `flutter run` flag works, and `r`, `R` and `q` act without Enter, as in `flutter run`) |
-| VS Code | `dart run tidy_log:setup` | pick a "(tidy logs)" config in Run and Debug and press F5 |
-| Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` (once per machine) | set Settings → Languages & Frameworks → Flutter → SDK path to the folder it prints |
-
-Pub workspaces (Melos) work too: the launchers and the shim also look for `.dart_tool/package_config.json` in parent folders.
-
-That's all the native part needs. The in-app logger below is optional.
+- In a terminal, `dart run tidy_log run` accepts every `flutter run` flag, and `r`, `R` and `q` act without Enter, as in `flutter run`.
+- Pub workspaces (Melos) work too: the launchers and the shim also look for `.dart_tool/package_config.json` in parent folders.
+- The native part needs nothing else. The in-app logger is optional.
 
 ### What `dart run tidy_log:setup` does (VS Code)
 
