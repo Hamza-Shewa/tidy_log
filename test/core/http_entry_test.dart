@@ -21,11 +21,11 @@ void main() {
     for (final (status, code, name) in [
       (200, '1;32', 'green'),
       (204, '1;32', 'green'),
-      (304, '1;36', 'cyan'),
+      (304, '93', 'light yellow'),
       (401, '33', 'yellow'),
       (404, '33', 'yellow'),
-      (500, '1;31', 'red'),
-      (503, '1;31', 'red'),
+      (500, '1;35', 'magenta'),
+      (503, '1;35', 'magenta'),
     ]) {
       test('$status is $name', () {
         expect(_statusCode(httpEntry(method: 'GET', url: '/a', status: status), '$status'), code);
@@ -72,6 +72,34 @@ void main() {
       );
       expect(_statusCode(ok, '400'), '1;32', reason: 'the rule wins over the status class');
       expect(_plain.render(ok).skip(1), ['    · validated']);
+    });
+
+    test('an info verdict is light yellow, like 3xx', () {
+      final entry = httpEntry(method: 'GET', url: '/s', status: 200, outcome: HttpOutcome.info, verdict: 'cached');
+      expect(_statusCode(entry, '200'), '93');
+    });
+
+    test('a 5xx error is magenta on the status, mark and reason; an API error on a 200 stays red', () {
+      final server = httpEntry(
+        method: 'GET',
+        url: '/s',
+        status: 502,
+        outcome: HttpOutcome.error,
+        verdict: 'bad gateway',
+      );
+      expect(_statusCode(server, '502'), '1;35');
+      final styled = _styled.render(server);
+      expect(styled.first, contains('\x1B[35m ✕\x1B[0m'));
+      expect(styled.last, contains('\x1B[35m✕ bad gateway\x1B[0m'));
+
+      final api = httpEntry(method: 'GET', url: '/s', status: 200, outcome: HttpOutcome.error, verdict: 'no');
+      expect(_statusCode(api, '200'), '1;31');
+      expect(_styled.render(api).last, contains('\x1B[31m✕ no\x1B[0m'));
+    });
+
+    test('a rule that calls a 500 a success wins over the server colour', () {
+      final entry = httpEntry(method: 'GET', url: '/s', status: 500, outcome: HttpOutcome.success);
+      expect(_statusCode(entry, '500'), '1;32');
     });
 
     test('a long or multi-line verdict is shortened to one line', () {

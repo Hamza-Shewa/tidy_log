@@ -28,9 +28,10 @@ HttpOutcome httpOutcome({int? status, String? error}) => switch (status) {
 ///             validTo: 2032-07-30T16:19:26Z
 ///           type: 2
 /// ```
-/// The status is green for 2xx, cyan for 3xx, yellow for 4xx and red for
-/// 5xx. An [outcome] (from a response rule) overrides that colour and adds a
-/// mark (`✕` error, `!` warning); the [verdict] goes on its own line, and so
+/// The status is green for 2xx, light yellow for 3xx, yellow for 4xx and
+/// magenta for 5xx. An [outcome] (from a response rule) overrides that colour
+/// and adds a mark (`✕` error, `!` warning); an error on a status below 500 is
+/// red, so the API rejecting a request looks different from a server failure; the [verdict] goes on its own line, and so
 /// does the [rule] that decided, unless the outcome is a plain success.
 ///
 /// [body] and [response] are data (maps, lists, JSON text, other text),
@@ -63,7 +64,10 @@ Entry httpEntry({
   final path = r(rawPath.isEmpty ? '/' : rawPath);
   final host = !hasHost ? '' : '${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
   final effective = outcome ?? httpOutcome(status: status, error: error);
-  final mark = error != null ? null : _mark(outcome);
+  // A 5xx the API also calls an error is a server failure, shown apart from
+  // errors the API reports itself (for example `type: 2` on a 200).
+  final server = error == null && status != null && status >= 500 && effective == HttpOutcome.error;
+  final mark = error != null ? null : _mark(outcome, server: server);
 
   final reason = error ?? (verdict == null || verdict.isEmpty ? null : verdict);
   return Entry(
@@ -74,7 +78,7 @@ Entry httpEntry({
       if (error != null)
         const Span('ERR', Tone.errorBold)
       else if (status != null)
-        Span('$status', _statusTone(effective))
+        Span('$status', server ? Tone.serverErrorBold : _statusTone(effective))
       else
         const Span('   '),
       mark ?? const Span('  '),
@@ -92,7 +96,7 @@ Entry httpEntry({
       if (host.isNotEmpty) Span('  $host', Tone.dim),
     ],
     details: [
-      if (reason != null) _reasonLine(error != null ? HttpOutcome.error : effective, r(reason)),
+      if (reason != null) _reasonLine(error != null ? HttpOutcome.error : effective, r(reason), server: server),
       if (rule != null && (effective == HttpOutcome.warning || effective == HttpOutcome.error))
         [const Span('rule  ', Tone.dim), Span(r(rule), Tone.secondary)],
       ..._section('body', bodyLines ?? dataLines(body), r),
@@ -111,7 +115,7 @@ String _same(String text) => text;
 
 Tone _statusTone(HttpOutcome outcome) => switch (outcome) {
   HttpOutcome.success => Tone.successBold,
-  HttpOutcome.info => Tone.accentBold,
+  HttpOutcome.info => Tone.info,
   HttpOutcome.warning => Tone.warning,
   HttpOutcome.error => Tone.errorBold,
 };
@@ -121,16 +125,16 @@ Tone _statusTone(HttpOutcome outcome) => switch (outcome) {
 /// Not `✗`: on Windows the Flutter tool rewrites `✗` to `X` in app output
 /// when the terminal reports no emoji support (flutter_tools'
 /// WindowsStdoutLogger).
-Span? _mark(HttpOutcome? outcome) => switch (outcome) {
-  HttpOutcome.error => const Span(' ✕', Tone.error),
+Span? _mark(HttpOutcome? outcome, {required bool server}) => switch (outcome) {
+  HttpOutcome.error => Span(' ✕', server ? Tone.serverError : Tone.error),
   HttpOutcome.warning => const Span(' !', Tone.warning),
   _ => null,
 };
 
-List<Span> _reasonLine(HttpOutcome outcome, String reason) {
+List<Span> _reasonLine(HttpOutcome outcome, String reason, {required bool server}) {
   final text = cap(reason.replaceAll(RegExp(r'\s*\n\s*'), ' '), _maxLineWidth);
   return switch (outcome) {
-    HttpOutcome.error => [Span('✕ $text', Tone.error)],
+    HttpOutcome.error => [Span('✕ $text', server ? Tone.serverError : Tone.error)],
     HttpOutcome.warning => [Span('! $text', Tone.warning)],
     _ => [Span('· $text', Tone.secondary)],
   };

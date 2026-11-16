@@ -13,8 +13,8 @@ const _startKey = 'tidy_log.start';
 ///     body  {userId: 1, pin: ••••••••}
 ///     resp  {"error":"bad pin"}
 /// ```
-/// The status is green for 2xx, cyan for 3xx, yellow for 4xx and red for
-/// 5xx. Values of the configured redaction keys are masked. Add it instead
+/// The status is green for 2xx, light yellow for 3xx, yellow for 4xx and
+/// magenta for 5xx; a rule's error on a lower status is red. Values of the configured redaction keys are masked. Add it instead
 /// of a Dio pretty logger: `dio.interceptors.add(TidyDioInterceptor())`.
 ///
 /// [rules] classify responses by their body, for backends that answer 200

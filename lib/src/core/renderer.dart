@@ -44,6 +44,9 @@ final class Renderer {
     Tone.accentBold: '1;36',
     Tone.success: '32',
     Tone.successBold: '1;32',
+    Tone.info: '93',
+    Tone.serverError: '35',
+    Tone.serverErrorBold: '1;35',
     Tone.path: '94',
     Tone.pathDim: '34',
   };

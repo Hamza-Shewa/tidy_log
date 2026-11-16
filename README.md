@@ -120,7 +120,7 @@ Add your own with `TidyLog.configure(errorText: (e) => e is ApiFailure ? 'ApiFai
 
 ### HTTP calls
 
-The status is green for 2xx, cyan for 3xx, yellow for 4xx and red for 5xx. A call that never got a response shows `ERR` and a short reason. Each call is logged at the level of its outcome, so `TidyLog.configure(minLevel: Level.warning)` hides the successful ones.
+The status is green for 2xx, light yellow for 3xx, yellow for 4xx and magenta for 5xx. An error a response rule finds on a lower status (for example `type: 2` on a 200) is red, so a server failure and a rejected request look different. A call that never got a response shows `ERR` and a short reason. Each call is logged at the level of its outcome, so `TidyLog.configure(minLevel: Level.warning)` hides the successful ones.
 
 `body` and `resp` lines are printed for every call by default. Choose for yourself:
 
