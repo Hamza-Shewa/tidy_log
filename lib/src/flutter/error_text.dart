@@ -12,9 +12,10 @@ ErrorText? customErrorText;
 
 /// Short lines for errors whose `toString()` is long or unhelpful. The first
 /// line replaces `toString()`; any others are printed as notes under it.
-/// Returns null when there is nothing better than `toString()`.
+/// Returns null when there is nothing better than `toString()`. A
+/// [customErrorText] hook that throws counts as returning null.
 List<String>? describeError(Object error) {
-  final custom = customErrorText?.call(error);
+  final custom = _custom(error);
   if (custom != null) return [custom];
   return switch (error) {
     DioException() => ['DioException · ${dioReason(error)}'],
@@ -22,6 +23,14 @@ List<String>? describeError(Object error) {
     FlutterError() => _flutter(error),
     _ => null,
   };
+}
+
+String? _custom(Object error) {
+  try {
+    return customErrorText?.call(error);
+  } on Object {
+    return null;
+  }
 }
 
 /// What went wrong with a Dio call, in a few words: `receive timeout (1 s)`,

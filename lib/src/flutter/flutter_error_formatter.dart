@@ -29,10 +29,18 @@ final class FlutterErrorFormatter {
   int _followOns = 0;
   String? _followOnKind;
 
+  /// Prints [details]. Never throws: a failure while formatting prints one
+  /// fallback line instead (see `TidyLog`).
   void present(FlutterErrorDetails details) {
+    guardLogging(() => _present(details));
+  }
+
+  void _present(FlutterErrorDetails details) {
     final described = describeError(details.exception);
     final lines = described ?? details.exceptionAsString().split('\n').where((l) => l.trim().isNotEmpty).toList();
-    final message = stripRenderIds(lines.isEmpty ? 'Flutter error' : lines.first.trim());
+    // Masked here, once, so no path below (`thrown again`, follow-on counts)
+    // can print the raw text.
+    final message = TidyLog.redact(stripRenderIds(lines.isEmpty ? 'Flutter error' : lines.first.trim()));
 
     if (_window != null && isFollowOnError(message)) {
       _followOns++;
@@ -54,25 +62,38 @@ final class FlutterErrorFormatter {
     var stack = details.stack == null
         ? TrimmedStack.empty
         : trimStack(Trace.from(details.stack!), projectPackages: packages);
-    final widget = _widgetLocation(details, packages.first);
+    // The widget location and the context are extras: if building them
+    // throws, the error is still printed without them.
+    final widget = _orNull(() => _widgetLocation(details, packages.first));
     if (widget != null && !stack.inProject) {
       stack = TrimmedStack(location: widget, trail: stack.trail, hidden: stack.hidden);
     }
 
-    final context = details.context?.toDescription();
+    final context = _orNull(() => details.context?.toDescription());
     TidyLog.emit(
       formatRecord(
         level: Level.error,
-        message: TidyLog.redact(message),
+        message: message,
         projectPackages: packages,
         tag: source == null ? null : 'caught by $source',
         trimmed: stack,
         notes: [
-          if (context != null && context.isNotEmpty) context,
-          for (final line in lines.skip(1).take(3)) TidyLog.redact(stripRenderIds(line.trim())),
+          for (final note in [
+            if (context != null && context.isNotEmpty) context,
+            for (final line in lines.skip(1).take(3)) stripRenderIds(line.trim()),
+          ])
+            TidyLog.redact(note),
         ],
       ),
     );
+  }
+
+  static T? _orNull<T>(T? Function() build) {
+    try {
+      return build();
+    } on Object {
+      return null;
+    }
   }
 
   void _openWindow() {

@@ -20,7 +20,8 @@ final class RuleVerdict {
 
   final HttpOutcome outcome;
 
-  /// Shown after the status: `200 ✕ <message>`.
+  /// Shown on its own line under the head line: `✕ <message>` for an
+  /// error, `! <message>` for a warning, `· <message>` otherwise.
   final String? message;
 
   /// Which rule decided and why, shown on a `rule` line:
