@@ -40,29 +40,31 @@ Then, depending on where you run your app:
 
 | You run the app from | Do this once | Then |
 |---|---|---|
-| A terminal | nothing | `dart run tidy_log run -d <device>` instead of `flutter run -d <device>` (every `flutter run` flag works) |
+| A terminal | nothing | `dart run tidy_log run -d <device>` instead of `flutter run -d <device>` (every `flutter run` flag works, and `r`, `R` and `q` act without Enter, as in `flutter run`) |
 | VS Code | `dart run tidy_log:setup` | pick a "(tidy logs)" config in Run and Debug and press F5 |
 | Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` (once per machine) | set Settings → Languages & Frameworks → Flutter → SDK path to the folder it prints |
+
+Pub workspaces (Melos) work too: the launchers and the shim also look for `.dart_tool/package_config.json` in parent folders.
 
 That's all the native part needs. The in-app logger below is optional.
 
 ### What `dart run tidy_log:setup` does (VS Code)
 
-- It writes `.vscode/tidy_flutter` and `.vscode/tidy_flutter.bat`. These are small launchers that start `dart run tidy_log` with your project's Flutter SDK. Until `flutter pub get` has run, they fall back to plain flutter, so a fresh clone always launches.
-- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, or creates the file. Your own configs, comments and formatting are left exactly as they are.
+- It writes `.vscode/tidy_flutter` and `.vscode/tidy_flutter.bat`. These are small launchers that start `dart run tidy_log` with the first Flutter SDK they find: `FLUTTER_ROOT` (VS Code sets it to the SDK the Dart extension uses), then `.fvm/flutter_sdk` next to `.vscode` (fvm), then `flutter` on `PATH`. Until `flutter pub get` has run, they fall back to plain flutter, so a fresh clone always launches.
+- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, or creates the file. Setup only adds text after your last config, so your own configs and comments stay as they are.
 - It prints an optional `main.dart` snippet that uses your app's package name.
 
-Commit the three files so your team gets them. `--dry-run` shows the changes first, and `--remove` undoes them.
+Commit the three files so your team gets them. `--dry-run` shows the changes first, and `--remove` takes out only what setup added.
 
 ### What `dart run tidy_log:setup --sdk` does (Android Studio / IntelliJ)
 
 The JetBrains Flutter plugin runs `<Flutter SDK path>/bin/flutter run --machine` itself, and has no option to run another program. So setup creates a **shim SDK** at `~/.tidy_log/flutter_sdk`:
-- **It's a few KB of symlinks.** They point to your real SDK, which is never copied or modified, so `flutter upgrade` keeps working.
+- **It's a few KB of symlinks.** They point to your real SDK, which is never modified, so `flutter upgrade` keeps working. On Windows, plain files are copied rather than linked.
 - **Only `bin/flutter` is different.** It's a small script:
   - `flutter run` and `flutter attach`, in projects that depend on tidy_log, go through tidy_log.
   - Every other command, and every other project, goes straight to your real Flutter.
 
-To keep typing plain `flutter run` in a terminal too, put the shim's `bin` first in your `PATH` (setup prints the line). Rerun `--sdk` after moving your SDK. `--sdk --remove` deletes the shim, and you can always point the IDE back at your real SDK.
+To keep typing plain `flutter run` in a terminal too, put the shim's `bin` first in your `PATH` (setup prints the line). The shim is a snapshot of the SDK's file list, so rerun `dart run tidy_log:setup --sdk` after moving your SDK, after a `flutter upgrade` that adds files, and after switching versions with a version manager (fvm, Homebrew) that changes the SDK path. `--sdk --remove` deletes the shim, and you can always point the IDE back at your real SDK.
 
 ### How it works
 
@@ -70,7 +72,7 @@ The native `X/Tag(pid):` lines come from the Flutter tool, which forwards logcat
 - It runs the real `flutter` and passes the IDE's JSON protocol through untouched, so breakpoints, hot reload and DevTools keep working.
 - It restyles only the device log lines.
 
-The runner finds the real `flutter` from `TIDY_FLUTTER_BIN`, then `FLUTTER_ROOT`, then `PATH`.
+The runner finds the real `flutter` from `TIDY_FLUTTER_BIN`, then `FLUTTER_ROOT`, then `PATH`. If that is the shim, it uses the real SDK the shim points to.
 
 ## In-app logger (optional)
 
@@ -201,6 +203,7 @@ If you can't use the runner, the package still works on its own. To hide native 
 
 - Android only for the native part. iOS has no logcat prefixes, but the package still works there.
 - The Windows launchers (`.bat`) and the shim on Windows are untested.
+- The shim takes the first argument that is not a flag as the command, so a flag with a value placed before the command (`flutter -d emu run`) is not recognised, and that run gets plain output. IDEs pass the device after `run`.
 - Repeat counts and open blocks are held back until the next different line, or until the output has been quiet for 200 ms.
 - Dart-Code links paths in the console. `lib/…` paths open from the workspace root, and `package:` paths are resolved by the debug adapter.
 

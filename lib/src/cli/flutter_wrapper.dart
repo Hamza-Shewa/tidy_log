@@ -5,6 +5,7 @@ import 'dart:io';
 import '../core/console/config.dart';
 import '../core/console/pipeline.dart';
 import 'output_router.dart';
+import 'sdk_shim.dart' show shimMarker;
 
 const _usage = '''
 tidy_log: runs `flutter` and cleans up its log output.
@@ -50,21 +51,100 @@ TidyConfig loadConfig(Directory dir, {bool? color}) {
   );
 }
 
-/// Finds the real `flutter`, never this wrapper itself.
+/// Finds the real `flutter`: `TIDY_FLUTTER_BIN`, then `FLUTTER_ROOT`, then
+/// `PATH`.
+///
+/// A tidy_log shim SDK (a folder with a [shimMarker] file) is never returned,
+/// because its `bin/flutter` would start this runner again. The real SDK
+/// recorded in the shim's marker is used instead, so a shim first on `PATH`
+/// still works. A shim whose recorded SDK is missing is skipped.
 String? findFlutter({Map<String, String>? environment}) {
   final env = environment ?? Platform.environment;
   final exe = Platform.isWindows ? 'flutter.bat' : 'flutter';
-  final self = File(Platform.resolvedExecutable).absolute.path;
-  bool usable(String path) => File(path).existsSync() && File(path).absolute.path != self;
+
+  String? usable(String path) {
+    if (!File(path).existsSync()) return null;
+    final shimTarget = _shimTarget(path);
+    if (shimTarget == null) return path;
+    final real = '$shimTarget/bin/$exe';
+    return File(real).existsSync() && _shimTarget(real) == null ? real : null;
+  }
 
   final explicit = env['TIDY_FLUTTER_BIN'];
-  if (explicit != null && usable(explicit)) return explicit;
   final root = env['FLUTTER_ROOT'];
-  if (root != null && usable('$root/bin/$exe')) return '$root/bin/$exe';
-  for (final dir in (env['PATH'] ?? '').split(Platform.isWindows ? ';' : ':')) {
-    if (dir.isNotEmpty && usable('$dir/$exe')) return '$dir/$exe';
+  final candidates = [
+    ?explicit,
+    if (root != null) '$root/bin/$exe',
+    for (final dir in (env['PATH'] ?? '').split(Platform.isWindows ? ';' : ':'))
+      if (dir.isNotEmpty) '$dir/$exe',
+  ];
+  for (final candidate in candidates) {
+    final found = usable(candidate);
+    if (found != null) return found;
   }
   return null;
+}
+
+/// When [flutterExe] (symlinks resolved) is a shim's `bin/flutter`, returns
+/// the real SDK root recorded in the shim's marker, or '' if none is
+/// recorded. Returns null for a plain SDK.
+String? _shimTarget(String flutterExe) {
+  String root;
+  try {
+    root = File(File(flutterExe).resolveSymbolicLinksSync()).parent.parent.path;
+  } on FileSystemException {
+    root = File(flutterExe).absolute.parent.parent.path;
+  }
+  final marker = File('$root/$shimMarker');
+  if (!marker.existsSync()) return null;
+  try {
+    return marker.readAsStringSync().trim();
+  } on FileSystemException {
+    return '';
+  }
+}
+
+/// Whether the runner should pass single keys to flutter, as `flutter run`
+/// does in a terminal, so `r` hot-reloads without Enter.
+///
+/// Only for `run` and `attach` (the command is the first argument that is not
+/// a flag, as in the shim), only in a terminal, and never for IDEs, which use
+/// `--machine`. Other commands keep line input so their prompts still work.
+bool usesRawKeys(List<String> args, {required bool hasTerminal}) {
+  if (!hasTerminal || args.contains('--machine')) return false;
+  final command = args.firstWhere((a) => !a.startsWith('-'), orElse: () => '');
+  return command == 'run' || command == 'attach';
+}
+
+/// Turns terminal line mode and echo off, and puts them back as they were.
+/// Some terminals refuse the change; input then simply stays line-based.
+final class _KeyMode {
+  bool? _lineMode;
+  bool? _echoMode;
+
+  void enterRaw() {
+    try {
+      _lineMode = stdin.lineMode;
+      _echoMode = stdin.echoMode;
+      // On Windows, echo has to go off before line mode does.
+      stdin.echoMode = false;
+      stdin.lineMode = false;
+    } on IOException {
+      // Keep whatever mode the terminal accepted; restore() undoes it.
+    }
+  }
+
+  /// Safe to call more than once.
+  void restore() {
+    final (line, echo) = (_lineMode, _echoMode);
+    _lineMode = _echoMode = null;
+    try {
+      if (line != null) stdin.lineMode = line;
+      if (echo != null) stdin.echoMode = echo;
+    } on IOException {
+      // The terminal refused; there is nothing more to undo here.
+    }
+  }
 }
 
 Future<int> _rewrite(TidyConfig config, {required bool plain}) async {
@@ -96,7 +176,17 @@ TidyConfig _withoutColor(TidyConfig c) => TidyConfig(
 
 Future<int> _run(String flutter, List<String> args, TidyConfig config) async {
   final process = await Process.start(flutter, args, environment: {'TIDY_LOG_WRAPPED': '1'});
+  final keys = usesRawKeys(args, hasTerminal: stdin.hasTerminal) ? (_KeyMode()..enterRaw()) : null;
+  try {
+    return await _forward(process, config, onSignal: keys?.restore);
+  } finally {
+    keys?.restore();
+  }
+}
 
+/// Forwards stdin and signals to [process] and restyles its output until it
+/// exits. [onSignal] runs before a SIGINT or SIGTERM is passed on.
+Future<int> _forward(Process process, TidyConfig config, {void Function()? onSignal}) async {
   IOSink? copy;
   try {
     final dir = Directory('${Directory.current.path}/.dart_tool/tidy_log')..createSync(recursive: true);
@@ -115,7 +205,10 @@ Future<int> _run(String flutter, List<String> args, TidyConfig config) async {
   final forwarders = <StreamSubscription<Object?>>[
     stdin.listen(process.stdin.add, onDone: () => process.stdin.close(), cancelOnError: false),
     for (final signal in [ProcessSignal.sigint, if (!Platform.isWindows) ProcessSignal.sigterm])
-      signal.watch().listen((s) => process.kill(s)),
+      signal.watch().listen((s) {
+        onSignal?.call();
+        process.kill(s);
+      }),
   ];
 
   final out = process.stdout.transform(const Utf8Decoder(allowMalformed: true)).transform(const LineSplitter()).listen((
