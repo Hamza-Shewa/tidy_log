@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tidy_log/src/cli/launchers.dart';
+import 'package:tidy_log/src/cli/sdk_shim.dart';
 import 'package:tidy_log/src/cli/setup.dart';
 
 /// A throwaway project folder with the given files.
@@ -18,7 +19,7 @@ Directory project(Map<String, String> files) {
 
 /// Every file under [dir] (relative path → content).
 Map<String, String> snapshot(Directory dir) => {
-  for (final f in dir.listSync(recursive: true).whereType<File>())
+  for (final f in dir.listSync(recursive: true, followLinks: false).whereType<File>())
     f.path.substring(dir.path.length + 1): f.readAsStringSync(),
 };
 
@@ -96,6 +97,33 @@ void main() {
     expect(result.stdout.toString(), startsWith('Flutter '));
     expect(result.stderr.toString(), contains('tidy_log is not resolved yet'));
   }, skip: Platform.isWindows ? 'the shell launcher is for macOS and Linux' : false);
+
+  test('--sdk with --sdk-dir creates the shim there, --sdk --remove deletes it', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+    final shim = '${dir.path}/shim';
+    final real = findRealFlutterRoot();
+    final out = StringBuffer();
+
+    expect(runSetup(['--sdk', '--sdk-dir', shim, '--flutter-root', real], project: dir, out: _BufferSink(out)), 0,
+        reason: 'flutter root: $real');
+    expect(File('$shim/bin/flutter').existsSync(), isTrue);
+    expect(out.toString(), contains('Flutter SDK path: $shim'));
+    expect(snapshot(dir).keys.where((k) => !k.startsWith('shim/')), ['pubspec.yaml'], reason: 'the project is not touched');
+
+    expect(runSetup(['--sdk', '--remove', '--sdk-dir', shim], project: dir, out: _BufferSink(StringBuffer())), 0);
+    expect(Directory(shim).existsSync(), isFalse);
+  }, skip: Platform.isWindows ? 'the shim test uses symlinks' : false);
+
+  test('--sdk --dry-run writes nothing, and --sdk-dir needs a value', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+    final real = findRealFlutterRoot();
+    final out = StringBuffer();
+
+    expect(runSetup(['--sdk', '--dry-run', '--sdk-dir', '${dir.path}/shim', '--flutter-root', real], project: dir, out: _BufferSink(out)), 0);
+    expect(out.toString(), contains('would create ${dir.path}/shim'));
+    expect(Directory('${dir.path}/shim').existsSync(), isFalse);
+    expect(run(dir, ['--sdk', '--sdk-dir'], StringBuffer()), 64);
+  });
 
   test('an unknown option is a usage error', () {
     final dir = project({'pubspec.yaml': _pubspec});

@@ -4,17 +4,25 @@ import 'package:yaml/yaml.dart';
 
 import 'launch_json.dart';
 import 'launchers.dart';
+import 'sdk_shim.dart';
 
 const setupUsage = '''
 dart run tidy_log:setup [options]
 
-Sets up VS Code in this project: writes .vscode/tidy_flutter (and .bat)
-and adds a "<name> (tidy logs)" copy of each Dart launch config in
-.vscode/launch.json. Your own configs and comments are left as they are.
+VS Code (default): writes .vscode/tidy_flutter (and .bat) and adds a
+"<name> (tidy logs)" copy of each Dart launch config in .vscode/launch.json.
+Your own configs and comments are left as they are.
 
-  --remove     undo: delete the tidy configs and the launcher scripts
-  --dry-run    print what would change, write nothing
-  --help       show this help
+  --remove              undo: delete the tidy configs and launcher scripts
+  --dry-run             print what would change, write nothing
+
+Android Studio / IntelliJ (once per machine):
+
+  --sdk                 create a shim Flutter SDK (symlinks to your real SDK,
+                        which is never modified) and point the IDE at it
+  --sdk --remove        delete the shim
+  --sdk-dir <path>      shim location (default ~/.tidy_log/flutter_sdk)
+  --flutter-root <path> the real SDK (default: FLUTTER_ROOT or PATH)
 
 Terminal: no setup needed, run `dart run tidy_log run -d <device>`.''';
 
@@ -90,21 +98,43 @@ void applySetup(Directory project, SetupPlan plan) {
 }
 
 /// Entry point of `bin/setup.dart`. Returns the exit code.
-int runSetup(List<String> args, {Directory? project, IOSink? out}) {
+int runSetup(List<String> args, {Directory? project, IOSink? out, Map<String, String>? environment}) {
   final sink = out ?? stdout;
-  final known = {'--remove', '--dry-run', '--help', '-h'};
-  final unknown = args.where((a) => !known.contains(a)).toList();
   if (args.contains('--help') || args.contains('-h')) {
     sink.writeln(setupUsage);
     return 0;
   }
-  if (unknown.isNotEmpty) {
-    stderr.writeln('Unknown option: ${unknown.join(' ')}\n\n$setupUsage');
-    return 64;
+  final flags = <String>{};
+  final values = <String, String>{};
+  for (var i = 0; i < args.length; i++) {
+    final arg = args[i];
+    if (arg == '--sdk-dir' || arg == '--flutter-root') {
+      if (i + 1 >= args.length) {
+        stderr.writeln('$arg needs a path.\n\n$setupUsage');
+        return 64;
+      }
+      values[arg] = args[++i];
+    } else if (const {'--remove', '--dry-run', '--sdk'}.contains(arg)) {
+      flags.add(arg);
+    } else {
+      stderr.writeln('Unknown option: $arg\n\n$setupUsage');
+      return 64;
+    }
   }
+  if (flags.contains('--sdk') || values.isNotEmpty) {
+    return _runSdkSetup(
+      sink,
+      remove: flags.contains('--remove'),
+      dryRun: flags.contains('--dry-run'),
+      shimPath: values['--sdk-dir'] ?? defaultShimPath(environment),
+      flutterRoot: values['--flutter-root'],
+      environment: environment,
+    );
+  }
+  final projectFlags = flags;
   final dir = project ?? Directory.current;
-  final remove = args.contains('--remove');
-  final dryRun = args.contains('--dry-run');
+  final remove = projectFlags.contains('--remove');
+  final dryRun = projectFlags.contains('--dry-run');
 
   final SetupPlan plan;
   try {
@@ -154,6 +184,51 @@ Optional, for TidyLog.d/i/w/e and the stronger error hooks, in lib/main.dart:
   }''');
   }
   return 0;
+}
+
+int _runSdkSetup(
+  IOSink sink, {
+  required bool remove,
+  required bool dryRun,
+  required String shimPath,
+  String? flutterRoot,
+  Map<String, String>? environment,
+}) {
+  try {
+    if (remove) {
+      if (dryRun) {
+        sink.writeln('  would delete $shimPath');
+      } else {
+        sink.writeln(removeShim(shimPath) ? '  deleted $shimPath' : 'No shim at $shimPath.');
+      }
+      if (!dryRun) sink.writeln('Point your IDE back at your real Flutter SDK if it still uses the shim.');
+      return 0;
+    }
+    final real = findRealFlutterRoot(explicit: flutterRoot, environment: environment);
+    if (dryRun) {
+      sink.writeln('  would create $shimPath -> $real');
+      return 0;
+    }
+    createShim(shimPath, real);
+    sink.writeln('''  created $shimPath (links to $real; your SDK is not modified)
+
+Android Studio / IntelliJ: Settings > Languages & Frameworks > Flutter >
+Flutter SDK path: $shimPath
+Then run the app as usual. Projects that depend on tidy_log get tidy logs
+for run and attach; everything else behaves exactly like your real SDK.
+
+Terminal (optional, to keep typing `flutter run`): put the shim first in PATH
+  export PATH="$shimPath${Platform.pathSeparator}bin:\$PATH"
+
+Rerun this after moving your Flutter SDK. Undo: dart run tidy_log:setup --sdk --remove''');
+    return 0;
+  } on ShimException catch (e) {
+    stderr.writeln('tidy_log setup: $e');
+    return 1;
+  } on FileSystemException catch (e) {
+    stderr.writeln('tidy_log setup: ${e.message} (${e.path})');
+    return 1;
+  }
 }
 
 /// The app's package name. Throws when [project] does not depend on tidy_log.
