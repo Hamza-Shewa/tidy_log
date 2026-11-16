@@ -2,18 +2,21 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "example",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart"
+    },
+    {
       "name": "example (tidy logs)",
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
-      "customTool": "${workspaceFolder}/../build/tidy_flutter",
-      "customToolReplacesArgs": 0
-    },
-    {
-      "name": "example (plain flutter)",
-      "type": "dart",
-      "request": "launch",
-      "program": "lib/main.dart"
+      "customTool": "${workspaceFolder}/.vscode/tidy_flutter",
+      "customToolReplacesArgs": 0,
+      "windows": {
+        "customTool": "${workspaceFolder}\\.vscode\\tidy_flutter.bat"
+      }
     }
   ]
 }

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Added by `dart run tidy_log:setup`: runs flutter through tidy_log's log cleaner.
+# Falls back to plain flutter until `flutter pub get` has resolved tidy_log.
+if [ -n "$FLUTTER_ROOT" ]; then
+  root="$FLUTTER_ROOT"
+else
+  flutter_bin="$(command -v flutter)" || { echo "tidy_log: flutter not found on PATH" >&2; exit 127; }
+  flutter_bin="$(readlink -f "$flutter_bin" 2>/dev/null || echo "$flutter_bin")"
+  root="$(cd "$(dirname "$flutter_bin")/.." && pwd -P)"
+fi
+if grep -q '"name": "tidy_log"' .dart_tool/package_config.json 2>/dev/null; then
+  exec "$root/bin/dart" run tidy_log "$@"
+fi
+echo "tidy_log is not resolved yet (run flutter pub get); using plain flutter" >&2
+exec "$root/bin/flutter" "$@"

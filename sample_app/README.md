@@ -25,7 +25,7 @@ is red even though the status is 200. See "Response rules" in the root README.
 
 | How you start it | What you see |
 |---|---|
-| `tidy_flutter run` (or the "tidy_log + wrapper" launch config) | tidy_log package **and** the wrapper restyling native logcat lines |
+| `dart run tidy_log run` (or the "tidy_log + runner" launch config) | tidy_log package **and** the runner restyling native logcat lines |
 | `flutter run` | tidy_log package only; native lines keep their `D/Tag(pid):` prefix |
 | `flutter run --dart-define=TIDY=false` | Flutter's default error boxes, `debugPrint` logging and Dio's `LogInterceptor`; nothing masked |
 
@@ -42,13 +42,12 @@ reaches Flutter the same way a finger tap does.
 ```bash
 cd sample_app
 flutter run -d emulator-5554 --dart-define=TIDY=false --dart-define=AUTORUN=true > logs/native_default.log
-../build/tidy_flutter run -d emulator-5554 --dart-define=AUTORUN=true > logs/tidy_wrapped.log
+dart run tidy_log run -d emulator-5554 --dart-define=AUTORUN=true > logs/tidy_wrapped.log
 ```
 
-Press `q` once `>>> run all done` appears. The wrapper also writes a clean
-copy to `.dart_tool/tidy_log/last_run.log`. Build the wrapper first with
-`tool/install.sh` (on Windows: `dart compile exe bin/tidy_flutter.dart -o ../../build/tidy_flutter.exe`
-from `packages/tidy_log_core`). `logs/` is git-ignored.
+Press `q` once `>>> run all done` appears. The runner also writes a clean
+copy to `.dart_tool/tidy_log/last_run.log`. Nothing needs building first.
+`logs/` is git-ignored.
 
 ## Tests
 
