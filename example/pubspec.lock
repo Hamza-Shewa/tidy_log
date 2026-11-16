@@ -227,14 +227,7 @@ packages:
   tidy_log:
     dependency: "direct main"
     description:
-      path: "../packages/tidy_log"
-      relative: true
-    source: path
-    version: "0.1.0"
-  tidy_log_core:
-    dependency: transitive
-    description:
-      path: "../packages/tidy_log_core"
+      path: ".."
       relative: true
     source: path
     version: "0.1.0"

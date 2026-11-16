@@ -1,0 +1,31 @@
+name: tidy_log
+description: Readable Flutter debug logs. Location-first errors, folded native logcat noise, one-line Dio calls with secrets masked. Works in VS Code, Android Studio and the terminal.
+version: 0.1.0
+repository: https://github.com/Hamza-Shewa/tidy_log
+issue_tracker: https://github.com/Hamza-Shewa/tidy_log/issues
+topics:
+  - logging
+  - debugging
+  - console
+  - vscode
+  - android
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
+
+dependencies:
+  dio: ^5.9.0
+  flutter:
+    sdk: flutter
+  stack_trace: ^1.12.1
+  yaml: ^3.1.3
+
+dev_dependencies:
+  fake_async: ^1.3.3
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+executables:
+  tidy_log:

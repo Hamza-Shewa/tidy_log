@@ -1,6 +1,6 @@
 # tidy_log
 
-Readable Flutter debug logs in the VS Code Debug Console (F5), for Android.
+Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or a terminal.
 
 - Errors open with **where** they happened (`at lib/app/view/home_page.dart:145:12  HomePage._onTap`), followed by a short dimmed trail of your own frames and a count of hidden frames.
 - Native logcat lines lose their `D/WindowOnBackDispatcher(31800):` prefix. The tag moves to a dim suffix, and the level becomes a coloured `DBG / INF / WRN / ERR` label.
@@ -28,47 +28,59 @@ ERR Error refreshing session: unvalid api sign .....en-US
     ┊ package:core_kit/…/network_service_impl.dart:97:14  NetworkServiceImpl.requestService
 ```
 
-## How it works
-
-There are two independent parts. You can use either one alone.
-
-| Part | What it does | Where |
-|---|---|---|
-| `tidy_flutter` wrapper | Dart-Code's `customTool`. It runs the real `flutter`, passes the debug adapter's JSON through untouched, and restyles the device log lines. Breakpoints, hot reload and DevTools keep working. | `packages/tidy_log_core` |
-| `tidy_log` package | `TidyLog.d/i/w/e`, Flutter error hooks and a Dio interceptor in your app. Its lines are pre-styled, and the wrapper passes them through as they are. | `packages/tidy_log` |
-
-The native `X/Tag(pid):` lines come from the Flutter tool, which forwards logcat. App code can't change them, which is why the wrapper exists.
+**Before and after:** the same demo session is 104 lines with `flutter run` and 22 with tidy_log. Both logs are in full on [the example page](example/README.md) (the **Example** tab on pub.dev).
 
 ## Setup
 
-### In short
-
 ```bash
-tool/install.sh   # builds build/tidy_flutter: the program VS Code runs instead of `flutter`
+flutter pub add dev:tidy_log
 ```
 
-On Windows, from `packages/tidy_log_core`: `dart compile exe bin/tidy_flutter.dart -o ../../build/tidy_flutter.exe`.
+Then, depending on where you run your app:
 
-```jsonc
-// your app's .vscode/launch.json
-{
-  "name": "app (tidy logs)",        // the name in VS Code's Run menu
-  "type": "dart",                   // a Dart/Flutter launch (Dart-Code extension)
-  "request": "launch",              // start the app, don't attach to a running one
-  "program": "lib/main.dart",       // your app's entry point
-  "customTool": "<path to tidy_log>/build/tidy_flutter", // run the wrapper instead of flutter (.exe on Windows)
-  "customToolReplacesArgs": 0       // keep every flutter argument; the wrapper passes them all on
-}
-```
+| You run the app from | Do this once | Then |
+|---|---|---|
+| A terminal | nothing | `dart run tidy_log run -d <device>` instead of `flutter run -d <device>` (every `flutter run` flag works, and `r`, `R` and `q` act without Enter, as in `flutter run`) |
+| VS Code | `dart run tidy_log:setup` | pick a "(tidy logs)" config in Run and Debug and press F5 |
+| Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` (once per machine) | set Settings → Languages & Frameworks → Flutter → SDK path to the folder it prints |
 
-```yaml
-# your app's pubspec.yaml
-dependencies:
-  tidy_log:
-    path: <path to tidy_log>/packages/tidy_log   # the in-app logger (optional; the wrapper works without it)
-```
+Pub workspaces (Melos) work too: the launchers and the shim also look for `.dart_tool/package_config.json` in parent folders.
+
+That's all the native part needs. The in-app logger below is optional.
+
+### What `dart run tidy_log:setup` does (VS Code)
+
+- It writes `.vscode/tidy_flutter` and `.vscode/tidy_flutter.bat`. These are small launchers that start `dart run tidy_log` with the first Flutter SDK they find: `FLUTTER_ROOT` (VS Code sets it to the SDK the Dart extension uses), then `.fvm/flutter_sdk` next to `.vscode` (fvm), then `flutter` on `PATH`. Until `flutter pub get` has run, they fall back to plain flutter, so a fresh clone always launches.
+- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, or creates the file. Setup only adds text after your last config, so your own configs and comments stay as they are.
+- It prints an optional `main.dart` snippet that uses your app's package name.
+
+Commit the three files so your team gets them. `--dry-run` shows the changes first, and `--remove` takes out only what setup added.
+
+### What `dart run tidy_log:setup --sdk` does (Android Studio / IntelliJ)
+
+The JetBrains Flutter plugin runs `<Flutter SDK path>/bin/flutter run --machine` itself, and has no option to run another program. So setup creates a **shim SDK** at `~/.tidy_log/flutter_sdk`:
+- **It's a few KB of symlinks.** They point to your real SDK, which is never modified, so `flutter upgrade` keeps working. On Windows, plain files are copied rather than linked.
+- **Only `bin/flutter` is different.** It's a small script:
+  - `flutter run` and `flutter attach`, in projects that depend on tidy_log, go through tidy_log.
+  - Every other command, and every other project, goes straight to your real Flutter.
+
+To keep typing plain `flutter run` in a terminal too, put the shim's `bin` first in your `PATH` (setup prints the line). The shim is a snapshot of the SDK's file list, so rerun `dart run tidy_log:setup --sdk` after moving your SDK, after a `flutter upgrade` that adds files, and after switching versions with a version manager (fvm, Homebrew) that changes the SDK path. `--sdk --remove` deletes the shim, and you can always point the IDE back at your real SDK.
+
+### How it works
+
+The native `X/Tag(pid):` lines come from the Flutter tool, which forwards logcat. App code can't change them, so tidy_log sits between your IDE and `flutter`:
+- It runs the real `flutter` and passes the IDE's JSON protocol through untouched, so breakpoints, hot reload and DevTools keep working.
+- It restyles only the device log lines.
+
+The runner finds the real `flutter` from `TIDY_FLUTTER_BIN`, then `FLUTTER_ROOT`, then `PATH`. If that is the shim, it uses the real SDK the shim points to.
+
+## In-app logger (optional)
+
+To call `TidyLog` from your code, add tidy_log as a regular dependency (`flutter pub add tidy_log`) rather than a dev one.
 
 ```dart
+import 'package:tidy_log/tidy_log.dart';
+
 void main() {
   TidyLog.configure(
     projectPackages: ['app', 'core_kit'], // your own packages; the first is the app, so its paths print as lib/…
@@ -81,59 +93,12 @@ void main() {
   runApp(const App());
 }
 
+TidyLog.i('Signed in', tag: 'Auth');
+TidyLog.e('Transfer failed', tag: 'Transfer', error: e, stackTrace: s);
 final dio = Dio()..interceptors.add(TidyDioInterceptor()); // one line per HTTP call, instead of a pretty logger
 ```
 
-Optional: a `tidy_log.yaml` next to `pubspec.yaml` tunes the wrapper (which native tags to hide, and more; see Configuration).
-
-The steps below explain each part in more detail.
-
-### 1. Build the wrapper (once, and again after updating tidy_log)
-
-```bash
-~/workspace/tinkering/tidy_log/tool/install.sh
-```
-
-This compiles `build/tidy_flutter`, a native binary, so F5 doesn't wait for Dart to compile it on each launch.
-
-### 2. Point your app's launch config at it
-
-In the app's `.vscode/launch.json`:
-
-```json
-{
-  "name": "app (tidy logs)",
-  "type": "dart",
-  "request": "launch",
-  "program": "lib/main.dart",
-  "customTool": "/Users/<you>/workspace/tinkering/tidy_log/build/tidy_flutter",
-  "customToolReplacesArgs": 0
-}
-```
-
-Keep your existing config next to it, so you can switch back to plain output from the Run menu.
-
-The wrapper finds the real `flutter` from `TIDY_FLUTTER_BIN`, then `FLUTTER_ROOT`, then `PATH`.
-
-### 3. (Optional) Use the package in the app
-
-```yaml
-dev_dependencies: # or dependencies
-  tidy_log:
-    path: ../tinkering/tidy_log/packages/tidy_log
-```
-
-```dart
-void main() {
-  TidyLog.configure(projectPackages: ['app', 'core_kit']); // first = the app itself
-  TidyLog.installErrorHooks(); // before Sentry or any other crash reporter
-  runApp(const App());
-}
-
-TidyLog.i('Signed in', tag: 'Auth');
-TidyLog.e('Transfer failed', tag: 'Transfer', error: e, stackTrace: s);
-dio.interceptors.add(TidyDioInterceptor()); // instead of a Dio pretty logger
-```
+`dart run tidy_log:setup` prints this snippet with your app's package name filled in.
 
 `installErrorHooks()` replaces Flutter's `══╡ EXCEPTION CAUGHT ╞══` box, and logs uncaught async errors. Every error gets its own location line, including the ones Flutter would print only as `Another exception was thrown: …`. Errors that are just side effects of the one before (the dozen `RenderBox was not laid out` after an unbounded-height error) are folded into one `┊ +12 follow-on errors hidden` line.
 
@@ -226,28 +191,29 @@ The `quiet` preset hides these tags: WindowOnBackDispatcher, InsetsController, I
 ## Other uses
 
 ```bash
-tidy_flutter run -d emulator-5554                        # flutter run in a terminal, tidied
-adb logcat | tidy_flutter rewrite                        # any logcat stream
-tidy_flutter rewrite --plain < saved.log > clean.log     # clean a saved log
+dart run tidy_log run -d emulator-5554                       # flutter run in a terminal, tidied
+adb logcat | dart run tidy_log rewrite                       # any logcat stream
+dart run tidy_log rewrite --plain < saved.log > clean.log    # clean a saved log
 ```
 
-## If the wrapper is not an option
-
-The package still works without it. To hide native noise with the built-in Debug Console filter, type this into its filter box:
+If you can't use the runner, the package still works on its own. To hide native noise in VS Code, type this into the Debug Console's filter box:
 `!FlutterJNI, !WindowOnBackDispatcher, !InsetsController, !ImeTracker`
 
 ## Limits
 
 - Android only for the native part. iOS has no logcat prefixes, but the package still works there.
+- The Windows launchers (`.bat`) and the shim on Windows are untested.
+- The shim takes the first argument that is not a flag as the command, so a flag with a value placed before the command (`flutter -d emu run`) is not recognised, and that run gets plain output. IDEs pass the device after `run`.
 - Repeat counts and open blocks are held back until the next different line, or until the output has been quiet for 200 ms.
 - Dart-Code links paths in the console. `lib/…` paths open from the workspace root, and `package:` paths are resolved by the debug adapter.
 
 ## Development
 
 ```bash
-cd packages/tidy_log_core && dart test          # core: parser, folding, collapsing, redaction, golden session
-cd packages/tidy_log && flutter test            # logger, error hooks, Dio interceptor
-cd example && flutter test                      # demo screen
+flutter test                  # the package: parser, folding, redaction, golden session, logger, hooks, setup, shim
+cd example && flutter test    # demo screen
 ```
 
-`packages/tidy_log_core/test/fixtures/sample_session.txt` is a real F5 session excerpt, with PINs and user IDs replaced. Its expected output is reviewed by hand. See `test/golden_session_test.dart` for how to regenerate it after an intended change.
+`test/core/fixtures/sample_session.txt` is a real F5 session excerpt, with PINs and user IDs replaced. Its expected output is reviewed by hand. See `test/core/golden_session_test.dart` for how to regenerate it after an intended change.
+
+`sample_app/` is a scenario bench that compares tidy_log with the default output (see its README).

@@ -2,12 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "sample (tidy_log + wrapper)",
+      "name": "sample (tidy_log + runner)",
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
-      "customTool": "${workspaceFolder}/../build/tidy_flutter",
-      "customToolReplacesArgs": 0
+      "customTool": "${workspaceFolder}/.vscode/tidy_flutter",
+      "customToolReplacesArgs": 0,
+      "windows": { "customTool": "${workspaceFolder}\\.vscode\\tidy_flutter.bat" }
     },
     {
       "name": "sample (tidy_log package only)",
@@ -27,8 +28,9 @@
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
-      "customTool": "${workspaceFolder}/../build/tidy_flutter",
+      "customTool": "${workspaceFolder}/.vscode/tidy_flutter",
       "customToolReplacesArgs": 0,
+      "windows": { "customTool": "${workspaceFolder}\\.vscode\\tidy_flutter.bat" },
       "toolArgs": ["--dart-define=AUTORUN=true"]
     }
   ]
