@@ -1,3 +1,4 @@
+import 'entry.dart';
 import 'record_formatter.dart' show framesHidden;
 
 final _javaFrame = RegExp(r'^\s*at (.+)$');
@@ -62,4 +63,12 @@ JavaStack? parseJavaStack(Iterable<String> lines) {
     frameCount: frames.length,
     cause: causes.lastOrNull,
   );
+}
+
+/// A Java frame with its file part highlighted:
+/// `com.app.Main.run(Main.kt:40)` → `com.app.Main.run(` + `Main.kt:40` + `)`.
+List<Span> javaFrameSpans(String frame, Tone tone) {
+  final m = RegExp(r'^(.*\()([^()]+:\d+)(\).*)$').firstMatch(frame);
+  if (m == null) return [Span(frame, tone)];
+  return [Span(m[1]!, tone), Span(m[2]!, Tone.path), Span(m[3]!, tone)];
 }

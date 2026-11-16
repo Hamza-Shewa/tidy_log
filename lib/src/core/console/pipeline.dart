@@ -8,6 +8,7 @@ import 'block_folder.dart';
 import 'config.dart';
 import 'logcat_line.dart';
 import 'noise_filter.dart';
+import 'pretty_http.dart';
 import 'redactor.dart';
 import 'repeat_collapser.dart';
 import 'restyler.dart';
@@ -28,12 +29,14 @@ final class ConsolePipeline {
   ConsolePipeline(this.config)
     : _filter = NoiseFilter(config),
       _redactor = Redactor(config.redactKeys),
-      _restyler = Restyler(config);
+      _restyler = Restyler(config),
+      _http = PrettyHttpPairer(redact: Redactor(config.redactKeys).apply, rules: config.httpRules);
 
   final TidyConfig config;
   final NoiseFilter _filter;
   final Redactor _redactor;
   final Restyler _restyler;
+  final PrettyHttpPairer _http;
   final _folder = BlockFolder();
   final _collapser = RepeatCollapser();
   final _seenPids = <int>{};
@@ -73,6 +76,10 @@ final class ConsolePipeline {
   }
 
   /// Emits everything held back.
+  /// Ends the run: everything [flush] emits, plus HTTP requests that never
+  /// got their response (an idle [flush] keeps waiting for those).
+  List<Entry> finish() => [...flush(), for (final entry in _http.finish()) ..._emit(entry), ..._collapser.flush()];
+
   List<Entry> flush() => [
     ..._closeBlocks(_folder.flush()),
     if (_box != null) ..._emit(_frameworkError()),
@@ -84,9 +91,19 @@ final class ConsolePipeline {
     return _emit(Entry.divider('app started · pid $pid'));
   }
 
-  List<Entry> _closeBlocks(List<Block> blocks) => [
-    for (final block in blocks) ..._emit(_restyler.restyle(block, currentPid: _currentPid)),
-  ];
+  List<Entry> _closeBlocks(List<Block> blocks) => [for (final block in blocks) ..._closeBlock(block)];
+
+  List<Entry> _closeBlock(Block block) {
+    // Blank Dart lines (pretty loggers print one before every box) are noise.
+    if (block.first.isDart && block.messages.every((m) => m.trim().isEmpty)) return const [];
+    // A blank line that only separated this block from the next box.
+    while (block.messages.length > 1 && block.messages.last.trim().isEmpty) {
+      block.messages.removeLast();
+    }
+    final box = block.isPrettyBox ? PrettyBox.parse(block.messages) : null;
+    if (box != null) return [for (final entry in _http.add(box)) ..._emit(entry)];
+    return _emit(_restyler.restyle(block, currentPid: _currentPid));
+  }
 
   List<Entry> _emit(Entry entry) => _collapser.add(_redact(entry));
 

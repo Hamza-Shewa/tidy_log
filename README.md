@@ -1,15 +1,59 @@
 # tidy_log
 
-Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or a terminal.
+Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or a terminal: errors open with where they happened, native logcat noise is cleaned up, and each HTTP call is one coloured line.
 
-- Errors open with **where** they happened (`at lib/app/view/home_page.dart:145:12  HomePage._onTap`), followed by a short dimmed trail of your own frames and a count of hidden frames.
-- Native logcat lines lose their `D/WindowOnBackDispatcher(31800):` prefix. The tag moves to a dim suffix, and the level becomes a coloured `DBG / INF / WRN / ERR` label.
+## Quick start
+
+**1. Install**
+
+```bash
+flutter pub add dev:tidy_log
+```
+
+Use `flutter pub add tidy_log` (not `dev:`) if your app code will call `TidyLog` or `TidyDioInterceptor`.
+
+**2. Run**
+
+| You run the app from | Set up once | Then run |
+|---|---|---|
+| A terminal | nothing | `dart run tidy_log run -d <device>` (any `flutter run` flags) |
+| VS Code | `dart run tidy_log:setup` | Run and Debug → pick a "(tidy logs)" config → F5 |
+| Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` | Settings → Languages & Frameworks → Flutter → SDK path = the folder it prints, then Run as usual |
+
+Works on macOS and Linux. The Windows launchers are included but untested. The native cleanup is for Android; on iOS the in-app logger still works.
+
+**3. HTTP calls (Dio)**
+
+| Who logs the HTTP call | What to add | Where "200, but it failed" rules go |
+|---|---|---|
+| Your own `Dio` client | `dio.interceptors.add(TidyDioInterceptor())` | `TidyDioInterceptor(rules: [...])` in Dart |
+| A package that prints pretty_dio_logger boxes (`╔╣ Request ║ GET`) | nothing: the runner folds each call into one line | `http_rules:` in `tidy_log.yaml` in the app root |
+
+Rules for common response bodies:
+
+| Your API answers | Rule in Dart | Rule in `tidy_log.yaml` (under `http_rules:`) |
+|---|---|---|
+| `{"success": false, "message": "…"}` | `ResponseRule.field('success', {true: HttpOutcome.success, false: HttpOutcome.error}, message: 'message')` | `- {field: success, values: {true: success, false: error}, message: message}` |
+| `{"type": 3, "messages": ["…"]}`, where only `type: 1` is a success | `ResponseRule.field('type', {1: HttpOutcome.success}, otherwise: HttpOutcome.error, message: 'messages')` | `- {field: type, values: {1: success}, otherwise: error, message: messages}` |
+| `{"status": "WARNING", "message": "…"}` | `ResponseRule.field('status', {'OK': HttpOutcome.success, 'WARNING': HttpOutcome.warning}, otherwise: HttpOutcome.error, message: 'message')` | `- {field: status, values: {OK: success, WARNING: warning}, otherwise: error, message: message}` |
+
+Status colours: green 2xx, light yellow 3xx, yellow 4xx, magenta 5xx, and red when a rule says a call failed (`200 ✕`, with the reason on the next line).
+
+That's all you need. Everything below is detail.
+
+---
+
+## What it does
+
+- Errors open with **where** they happened (`at lib/app/view/home_page.dart:145:12  HomePage._onTap`, the location in blue so it stands out), followed by a short dimmed trail of your own frames and a count of hidden frames.
+- Native logcat lines lose their `D/WindowOnBackDispatcher(31800):` prefix. The tag moves to a dim suffix in a fixed column, and the level becomes a coloured `DBG / INF / WRN / ERR` label. In a terminal, lines are fitted to the window instead of wrapping.
 - Noise is handled for you:
   - Identical lines collapse into one line with `×30`.
   - Near-duplicates fold into `↳ +6 similar`.
   - Native Java stack traces fold to the exception, the first non-SDK frame and the `caused by` line.
   - Chatty Android tags are hidden by default.
-- Dio calls become one line each (`POST /api/Auth/Signin  401  1,003 ms`), coloured by status, with PINs, passwords and tokens masked. Response rules can flag a 200 whose body says it failed (`200 ✕ Insufficient balance`).
+- Each Dio call gets one aligned line (method, path, status, duration, time, host in fixed columns), coloured by status, with its body and response underneath one field per line. PINs, OTPs, tokens (also `softToken`, `refreshToken` and URL query values), passwords and JWTs are masked. Response rules can flag a 200 whose body says it failed (`200 ✕`, with the reason on the next line).
+- Packages that log HTTP with pretty_dio_logger-style boxes (`╔╣ Request ║ GET`) need no change: the runner pairs each request with its response and prints the same one line, without the header and timeout rows. Anything shaped like a JWT is masked wherever it appears, even when a logger prints it without its key.
 - Each new app process gets a divider, and so does each hot restart.
 - Every run also writes a **clean copy** to `.dart_tool/tidy_log/last_run.log`, in plain text with no colours and no tags, ready to paste.
 
@@ -21,8 +65,9 @@ ERR EncryptedSharedPreferences initialization failed. Falling back…     · Flu
     ┊ … 6 frames hidden · caused by GeneralSecurityException: decryption failed
 DBG Sending viewport metrics to the engine.                             · FlutterJNI  ×30
 NAV /login → /loginSelectAccountPage
-POST /api/Auth/OpenSession  10.0.2.2:4013  200  1,010 ms · 15:22:58
-    resp  {"type":2,"messages":["unvalid api sign .....en-US"],…}
+POST   /api/Auth/OpenSession                           200   1,010 ms  15:22:58  10.0.2.2:4013
+    resp  type: 2
+          messages: [unvalid api sign .....en-US]
 ERR Error refreshing session: unvalid api sign .....en-US
     at package:core_kit/infrastructure/network/httpHandler/handle_exception.dart:42:5  HandleException.handleException
     ┊ package:core_kit/…/network_service_impl.dart:97:14  NetworkServiceImpl.requestService
@@ -30,23 +75,11 @@ ERR Error refreshing session: unvalid api sign .....en-US
 
 **Before and after:** the same demo session is 104 lines with `flutter run` and 22 with tidy_log. Both logs are in full on [the example page](example/README.md) (the **Example** tab on pub.dev).
 
-## Setup
+## Setup in detail
 
-```bash
-flutter pub add dev:tidy_log
-```
-
-Then, depending on where you run your app:
-
-| You run the app from | Do this once | Then |
-|---|---|---|
-| A terminal | nothing | `dart run tidy_log run -d <device>` instead of `flutter run -d <device>` (every `flutter run` flag works, and `r`, `R` and `q` act without Enter, as in `flutter run`) |
-| VS Code | `dart run tidy_log:setup` | pick a "(tidy logs)" config in Run and Debug and press F5 |
-| Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` (once per machine) | set Settings → Languages & Frameworks → Flutter → SDK path to the folder it prints |
-
-Pub workspaces (Melos) work too: the launchers and the shim also look for `.dart_tool/package_config.json` in parent folders.
-
-That's all the native part needs. The in-app logger below is optional.
+- In a terminal, `dart run tidy_log run` accepts every `flutter run` flag, and `r`, `R` and `q` act without Enter, as in `flutter run`.
+- Pub workspaces (Melos) work too: the launchers and the shim also look for `.dart_tool/package_config.json` in parent folders.
+- The native part needs nothing else. The in-app logger is optional.
 
 ### What `dart run tidy_log:setup` does (VS Code)
 
@@ -118,7 +151,7 @@ Add your own with `TidyLog.configure(errorText: (e) => e is ApiFailure ? 'ApiFai
 
 ### HTTP calls
 
-The status is green for 2xx, cyan for 3xx, yellow for 4xx and red for 5xx. A call that never got a response shows `ERR` and a short reason. Each call is logged at the level of its outcome, so `TidyLog.configure(minLevel: Level.warning)` hides the successful ones.
+The status is green for 2xx, light yellow for 3xx, yellow for 4xx and magenta for 5xx. An error a response rule finds on a lower status (for example `type: 2` on a 200) is red, so a server failure and a rejected request look different. A call that never got a response shows `ERR` and a short reason. Each call is logged at the level of its outcome, so `TidyLog.configure(minLevel: Level.warning)` hides the successful ones.
 
 `body` and `resp` lines are printed for every call by default. Choose for yourself:
 
@@ -152,10 +185,14 @@ TidyLog.configure(httpRules: [ // or TidyDioInterceptor(rules: [...]) for one cl
 ```
 
 ```
-POST /api/wallet/pay        127.0.0.1:45887  200 ✕ Insufficient balance  12 ms · 21:48:42
+POST   /api/wallet/pay                                 200 ✕     12 ms  21:48:42  127.0.0.1:45887
+    ✕ Insufficient balance
     rule  success = false → error
-GET  /api/session           127.0.0.1:45887  200 ! Session expires in 2 minutes  4 ms · 21:48:42
-POST /api/Auth/OpenSession  10.0.2.2:4013    200 ✕ unvalid api sign  1,010 ms · 15:22:58
+GET    /api/session                                    200 !      4 ms  21:48:42  127.0.0.1:45887
+    ! Session expires in 2 minutes
+    rule  response_type = "WARNING" → warning
+POST   /api/Auth/OpenSession                           200 ✕  1,010 ms  15:22:58  10.0.2.2:4013
+    ✕ unvalid api sign
     rule  type = 2 → error
 ```
 
@@ -178,13 +215,20 @@ show_tags: [ImeTracker]  # wins over the preset and hide_tags
 hide_messages: ['^Width is zero']
 min_native_level: debug  # verbose | debug | info | warning | error
 redact_keys: [pin, password, passcode, otp, token, secret, cvv, authorization]
-max_width: 220           # long head lines are shortened in the console (never in the clean copy)
+max_width: 160           # widest console line when the output is not a terminal (a terminal's own width is used); never applies to the clean copy
 color: true              # or set NO_COLOR=1
 rules:                   # label your own Dart print lines
   - match: '^unhandled element'
     label: SVG
     tone: warning        # plain dim secondary error warning accent success
+http_rules:              # judge pretty_dio_logger boxes by their body, like ResponseRule.field in the app
+  - field: type          # body path; dotted for nested fields (meta.status, errors.0.code)
+    values: {1: success} # success | info | warning | error
+    otherwise: error     # any other value present; leave it out to keep the status colour
+    message: messages    # text shown as the reason (a string, or a list's first item)
 ```
+
+`http_rules` are for HTTP calls another package logs with a pretty_dio_logger style interceptor, which the runner folds into one line; the first rule with a verdict wins. A mistyped outcome stops the run with a message naming the rule, so a typo never turns a rule off quietly. For your own Dio clients, `TidyDioInterceptor(rules: …)` does the same in the app.
 
 The `quiet` preset hides these tags: WindowOnBackDispatcher, InsetsController, ImeTracker, InputConnectionAdaptor, Surface, HWUI, nativeloader, `cr_*`, CompatChangeReporter, Badge, NexusLauncherBadge, ApplicationLoaders, ResourcesManager, `VRI[*`, ViewRootImpl, WindowExtensionsImpl, WindowLayoutComponentImpl, UiContextUtils, AudioSystem, libc, DefaultDispatch, InteractionJankMonitor, FlutterActivityAndFragmentDelegate, ProfileInstaller and DesktopExperienceFlags. It also hides `avc: denied/granted` lines and these start-up messages: `Beginning load of flutter`, `flutter (null) was loaded normally!`, `Width is zero` and ART's `… GC freed …`. `Skipped N frames!` stays, because it is a real performance signal.
 

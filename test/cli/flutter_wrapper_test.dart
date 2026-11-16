@@ -93,4 +93,15 @@ void main() {
       expect(usesRawKeys([], hasTerminal: true), isFalse);
     });
   });
+
+  group('console width', () {
+    test('a terminal uses its own width; otherwise the configured one', () {
+      expect(consoleWidth(hasTerminal: true, columns: 132, configured: 160), 132);
+      expect(consoleWidth(hasTerminal: false, columns: 0, configured: 160), 160);
+    });
+
+    test('a terminal too narrow to report sensibly falls back to the configured width', () {
+      expect(consoleWidth(hasTerminal: true, columns: 0, configured: 160), 160);
+    });
+  });
 }

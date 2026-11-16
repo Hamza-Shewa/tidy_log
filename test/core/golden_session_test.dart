@@ -22,7 +22,12 @@ void main() {
     ];
 
     expect(actual, expected);
-    expect(actual.length, lessThan(input.length ~/ 2), reason: 'the cleaner should at least halve this session');
+    int chars(List<String> lines) => lines.fold(0, (sum, l) => sum + l.length);
+    expect(
+      chars(actual),
+      lessThan(chars(input) ~/ 2),
+      reason: 'the cleaner should at least halve this session (bodies take one line per field, so count characters)',
+    );
     expect(actual.join('\n'), isNot(contains('11112222')), reason: 'the PIN must be masked');
   });
 }

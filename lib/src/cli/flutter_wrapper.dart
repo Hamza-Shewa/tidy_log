@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../core/console/config.dart';
 import '../core/console/pipeline.dart';
+import '../core/renderer.dart';
 import 'output_router.dart';
 import 'sdk_shim.dart' show shimMarker;
 
@@ -152,11 +153,15 @@ Future<int> _rewrite(TidyConfig config, {required bool plain}) async {
   // quietly instead of dying with a "Broken pipe" stack trace.
   unawaited(stdout.done.catchError((Object _) => exit(0)));
   final pipeline = ConsolePipeline(plain ? _withoutColor(config) : config);
-  final router = OutputRouter(pipeline: pipeline, styled: stdout.writeln);
+  final router = OutputRouter(
+    pipeline: pipeline,
+    styled: stdout.writeln,
+    styledRenderer: Renderer(color: pipeline.config.color, maxWidth: _stdoutWidth(pipeline.config)),
+  );
   await for (final line in stdin.transform(const Utf8Decoder(allowMalformed: true)).transform(const LineSplitter())) {
     router.add(line);
   }
-  router.flush();
+  router.finish();
   await stdout.flush();
   return 0;
 }
@@ -195,7 +200,12 @@ Future<int> _forward(Process process, TidyConfig config, {void Function()? onSig
     copy = null;
   }
 
-  final router = OutputRouter(pipeline: ConsolePipeline(config), styled: stdout.writeln, plain: copy?.writeln);
+  final router = OutputRouter(
+    pipeline: ConsolePipeline(config),
+    styled: stdout.writeln,
+    plain: copy?.writeln,
+    styledRenderer: Renderer(color: config.color, maxWidth: _stdoutWidth(config)),
+  );
   Timer? idle;
   void scheduleFlush() {
     idle?.cancel();
@@ -221,7 +231,7 @@ Future<int> _forward(Process process, TidyConfig config, {void Function()? onSig
   final code = await process.exitCode;
   await Future.wait([out, err]);
   idle?.cancel();
-  router.flush();
+  router.finish();
   for (final f in forwarders) {
     unawaited(f.cancel());
   }
@@ -229,4 +239,21 @@ Future<int> _forward(Process process, TidyConfig config, {void Function()? onSig
   await copy?.close();
   await stdout.flush();
   return code;
+}
+
+/// The widest a styled line may be: the terminal's width when stdout is a
+/// terminal (so lines never wrap), otherwise [configured] (`max_width`).
+int consoleWidth({required bool hasTerminal, required int columns, required int configured}) =>
+    hasTerminal && columns > 0 ? columns : configured;
+
+int _stdoutWidth(TidyConfig config) {
+  var columns = 0;
+  if (stdout.hasTerminal) {
+    try {
+      columns = stdout.terminalColumns;
+    } on StdoutException {
+      columns = 0;
+    }
+  }
+  return consoleWidth(hasTerminal: stdout.hasTerminal, columns: columns, configured: config.maxWidth);
 }

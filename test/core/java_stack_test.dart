@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tidy_log/src/core.dart';
+import 'package:tidy_log/src/core/java_stack.dart' show javaFrameSpans;
 
 void main() {
   group('parseJavaStack', () {
@@ -69,5 +70,15 @@ Caused by: java.io.IOException: decryption failed
       expect(isFollowOnError('Vertical viewport was given unbounded height.'), isFalse);
       expect(followOnKind('RenderBox was not laid out: RenderFlex'), 'RenderBox was not laid out');
     });
+  });
+
+  test('a frame has its file part in the path colour, the rest in the line colour', () {
+    final spans = javaFrameSpans('aleem.flutter.defender.Plugin.register(Plugin.kt:308)', Tone.warning);
+    expect(spans.map((s) => (s.text, s.tone)), [
+      ('aleem.flutter.defender.Plugin.register(', Tone.warning),
+      ('Plugin.kt:308', Tone.path),
+      (')', Tone.warning),
+    ]);
+    expect(javaFrameSpans('Native Method', Tone.error).single.tone, Tone.error);
   });
 }

@@ -18,10 +18,12 @@ bool startsWithAnsi(String text) => text.startsWith(_esc);
 /// Turns [Entry] values into console lines.
 ///
 /// [color] false gives plain text (used for the clean copy file and for
-/// `NO_COLOR`). [maxHeadWidth] shortens very long head lines in the styled
-/// view only; the plain copy always keeps the full text.
+/// `NO_COLOR`). [maxWidth] is the widest a line may be in the styled view
+/// (the terminal width when known): longer lines are shortened, keeping the
+/// `· Tag` suffix visible, instead of wrapping. The plain copy always keeps
+/// the full text.
 final class Renderer {
-  const Renderer({this.color = true, bool? includeSource, this.maxHeadWidth, this.suffixColumn = 72})
+  const Renderer({this.color = true, bool? includeSource, this.maxWidth, this.suffixColumn = 72})
     : includeSource = includeSource ?? color;
 
   final bool color;
@@ -29,7 +31,7 @@ final class Renderer {
   /// Whether the dim `· Tag` suffix is written. Off by default in plain mode,
   /// so the clean copy has no native tags.
   final bool includeSource;
-  final int? maxHeadWidth;
+  final int? maxWidth;
   final int suffixColumn;
 
   static const _codes = <Tone, String>{
@@ -42,6 +44,11 @@ final class Renderer {
     Tone.accentBold: '1;36',
     Tone.success: '32',
     Tone.successBold: '1;32',
+    Tone.info: '93',
+    Tone.serverError: '35',
+    Tone.serverErrorBold: '1;35',
+    Tone.path: '94',
+    Tone.pathDim: '34',
   };
 
   List<String> render(Entry entry) {
@@ -50,29 +57,34 @@ final class Renderer {
       final line = color ? text : stripAnsi(includeSource ? text : text.replaceFirst(_styledSuffix, ''));
       return [if (entry.repeat > 1) '$line${_paint(' ×${entry.repeat}', Tone.dim)}' else line];
     }
-    final head = _truncate(entry.head);
+    final tail = [
+      if (includeSource && entry.source != null) '· ${entry.source}',
+      if (entry.repeat > 1) '×${entry.repeat}',
+    ].join('  ');
+    final limit = maxWidth;
+    final head = _truncate(entry.head, limit == null ? null : (tail.isEmpty ? limit : limit - tail.length - 2));
     final buffer = StringBuffer();
     for (final span in head) {
       buffer.write(_paint(span.text, span.tone));
     }
     final width = head.fold<int>(0, (sum, s) => sum + s.text.length);
-    final tail = [
-      if (includeSource && entry.source != null) '· ${entry.source}',
-      if (entry.repeat > 1) '×${entry.repeat}',
-    ].join('  ');
     if (tail.isNotEmpty) {
-      final pad = includeSource && width < suffixColumn ? ' ' * (suffixColumn - width) : '  ';
+      final fitsColumn = limit == null || suffixColumn + tail.length <= limit;
+      final pad = includeSource && width < suffixColumn && fitsColumn ? ' ' * (suffixColumn - width) : '  ';
       buffer.write(_paint('$pad$tail', Tone.dim));
     }
     return [
       buffer.toString().trimRight(),
-      for (final detail in entry.details) '    ${detail.map((s) => _paint(s.text, s.tone)).join()}'.trimRight(),
+      for (final detail in entry.details)
+        [
+          const Span('    '),
+          ..._truncate(detail, limit == null ? null : limit - 4),
+        ].map((s) => _paint(s.text, s.tone)).join().trimRight(),
       if (entry.similar > 0) _paint('    ↳ +${entry.similar} similar', Tone.dim),
     ];
   }
 
-  List<Span> _truncate(List<Span> spans) {
-    final max = maxHeadWidth;
+  List<Span> _truncate(List<Span> spans, int? max) {
     if (!color || max == null) return spans;
     var used = 0;
     final out = <Span>[];

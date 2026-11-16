@@ -12,8 +12,7 @@ import '../core/renderer.dart';
 /// written styled to [styled] and as plain text to [plain] (the clean copy).
 final class OutputRouter {
   OutputRouter({required this.pipeline, required this.styled, this.plain, Renderer? styledRenderer})
-    : _styledRenderer =
-          styledRenderer ?? Renderer(color: pipeline.config.color, maxHeadWidth: pipeline.config.maxWidth),
+    : _styledRenderer = styledRenderer ?? Renderer(color: pipeline.config.color, maxWidth: pipeline.config.maxWidth),
       _plainRenderer = const Renderer(color: false);
 
   final ConsolePipeline pipeline;
@@ -34,6 +33,9 @@ final class OutputRouter {
   }
 
   void flush() => _write(pipeline.flush());
+
+  /// The end of the run: also reports HTTP requests that never got an answer.
+  void finish() => _write(pipeline.finish());
 
   void _write(List<Entry> entries) {
     for (final entry in entries) {

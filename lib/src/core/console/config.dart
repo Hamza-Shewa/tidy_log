@@ -1,6 +1,8 @@
 import 'package:yaml/yaml.dart';
 
+import '../body_rule.dart';
 import '../entry.dart';
+import '../http_entry.dart';
 import '../level.dart';
 
 /// Which native lines are hidden by default.
@@ -75,8 +77,9 @@ final class TidyConfig {
     this.projectPackages = const ['app'],
     this.redactKeys = defaultRedactKeys,
     this.color = true,
-    this.maxWidth = 220,
+    this.maxWidth = 160,
     this.rules = const [],
+    this.httpRules = const [],
   });
 
   static const defaultRedactKeys = <String>[
@@ -105,6 +108,10 @@ final class TidyConfig {
   final int maxWidth;
   final List<LabelRule> rules;
 
+  /// Judge pretty_dio_logger boxes by their response body (`http_rules`),
+  /// like `ResponseRule.field` does in the app. The first verdict wins.
+  final List<FieldRule> httpRules;
+
   /// Parses `tidy_log.yaml`. [appPackage] (the `name:` from pubspec.yaml) is
   /// put first in [projectPackages] when the file does not list it.
   factory TidyConfig.fromYaml(String? source, {String? appPackage, bool? color}) {
@@ -127,7 +134,7 @@ final class TidyConfig {
       projectPackages: packages.isEmpty ? const ['app'] : packages,
       redactKeys: map.containsKey('redact_keys') ? strings('redact_keys') : defaultRedactKeys,
       color: color ?? (map['color'] as bool? ?? true),
-      maxWidth: (map['max_width'] as int?) ?? 220,
+      maxWidth: (map['max_width'] as int?) ?? 160,
       rules: [
         for (final rule in (map['rules'] as YamlList?) ?? YamlList())
           if (rule is YamlMap && rule['match'] != null)
@@ -137,6 +144,28 @@ final class TidyConfig {
               Tone.values.firstWhere((t) => t.name == rule['tone'], orElse: () => Tone.accent),
             ),
       ],
+      httpRules: [for (final (i, rule) in ((map['http_rules'] as YamlList?) ?? YamlList()).indexed) _httpRule(i, rule)],
+    );
+  }
+
+  /// One `http_rules` entry. A mistake is reported rather than skipped, so
+  /// a typo never quietly turns a rule off.
+  static FieldRule _httpRule(int index, Object? rule) {
+    Never fail(String problem) => throw FormatException('tidy_log.yaml: http_rules[$index]: $problem');
+    HttpOutcome outcome(Object? name) => HttpOutcome.values.firstWhere(
+      (o) => o.name == '$name',
+      orElse: () => fail('unknown outcome "$name" (use success, info, warning or error)'),
+    );
+    if (rule is! YamlMap) fail('expected field, values, otherwise and message keys');
+    final field = rule['field'];
+    if (field == null || '$field'.isEmpty) fail('missing field (the body path to look at, such as type)');
+    final values = rule['values'];
+    if (values != null && values is! YamlMap) fail('values must be a map, such as {1: success, 2: error}');
+    return FieldRule(
+      '$field',
+      {for (final MapEntry(:key, :value) in ((values as YamlMap?) ?? YamlMap()).entries) key: outcome(value)},
+      message: rule['message'] == null ? null : '${rule['message']}',
+      otherwise: rule['otherwise'] == null ? null : outcome(rule['otherwise']),
     );
   }
 }

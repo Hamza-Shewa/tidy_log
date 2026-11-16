@@ -1,7 +1,5 @@
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
-import '../core.dart' show HttpOutcome;
+import '../core.dart' show FieldRule, HttpOutcome, jsonBody;
 
 /// Which HTTP calls print their `body` and `resp` lines.
 enum HttpBodies {
@@ -77,37 +75,18 @@ abstract class ResponseRule {
 }
 
 final class _FieldRule extends ResponseRule {
-  _FieldRule(this.path, this.values, {this.message, this.otherwise, this.when});
+  _FieldRule(String path, Map<Object?, HttpOutcome> values, {String? message, HttpOutcome? otherwise, this.when})
+    : _rule = FieldRule(path, values, message: message, otherwise: otherwise);
 
-  final String path;
-  final Map<Object?, HttpOutcome> values;
-  final String? message;
-  final HttpOutcome? otherwise;
+  final FieldRule _rule;
   final bool Function(RequestOptions request)? when;
 
   @override
   RuleVerdict? evaluate(Response<dynamic> response) {
     if (when != null && !when!(response.requestOptions)) return null;
-    final body = jsonBody(response.data);
-    final (found, value) = lookup(body, path);
-    if (!found) return null;
-    final outcome = _match(value) ?? otherwise;
-    if (outcome == null) return null;
-    final text = message == null ? null : textAt(body, message!);
-    return RuleVerdict(outcome, message: text, reason: '$path = ${_show(value)} → ${outcome.name}');
+    final verdict = _rule.decide(jsonBody(response.data));
+    return verdict == null ? null : RuleVerdict(verdict.outcome, message: verdict.message, reason: verdict.rule);
   }
-
-  HttpOutcome? _match(Object? value) {
-    final exact = values[value];
-    if (exact != null) return exact;
-    final wanted = '$value'.toLowerCase();
-    for (final MapEntry(:key, value: outcome) in values.entries) {
-      if ('$key'.toLowerCase() == wanted) return outcome;
-    }
-    return null;
-  }
-
-  static String _show(Object? value) => value is String ? '"$value"' : '$value';
 }
 
 final class _CustomRule extends ResponseRule {
@@ -121,48 +100,4 @@ final class _CustomRule extends ResponseRule {
     if (when != null && !when!(response.requestOptions)) return null;
     return decide(response);
   }
-}
-
-/// The response body as JSON: Dio's decoded Map or List as is, or JSON text
-/// decoded. Anything else, including text that is not JSON, gives null.
-Object? jsonBody(Object? data) {
-  if (data is Map || data is List) return data;
-  if (data is! String) return null;
-  final text = data.trim();
-  if (!text.startsWith('{') && !text.startsWith('[')) return null;
-  try {
-    return jsonDecode(text);
-  } on FormatException {
-    return null;
-  }
-}
-
-/// Follows a dotted [path] through Maps and Lists (`errors.0.code`).
-/// Returns whether the path exists, and the value there (which may be null).
-(bool, Object?) lookup(Object? body, String path) {
-  Object? current = body;
-  for (final segment in path.split('.')) {
-    final here = current;
-    final index = int.tryParse(segment);
-    if (here is Map && here.containsKey(segment)) {
-      current = here[segment];
-    } else if (here is List && index != null && index >= 0 && index < here.length) {
-      current = here[index];
-    } else {
-      return (false, null);
-    }
-  }
-  return (true, current);
-}
-
-/// The text at [path]: a string as is, the first non-null item of a list,
-/// anything else through `toString()`. Null when missing or empty.
-String? textAt(Object? body, String path) {
-  final (found, value) = lookup(body, path);
-  if (!found || value == null) return null;
-  final text = switch (value) {
-    final List<Object?> list => list.firstWhere((v) => v != null, orElse: () => null)?.toString(),
-    _ => '$value',
-  };
-  return text == null || text.trim().isEmpty ? null : text.trim();
 }

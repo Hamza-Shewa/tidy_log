@@ -13,8 +13,8 @@ const _startKey = 'tidy_log.start';
 ///     body  {userId: 1, pin: ••••••••}
 ///     resp  {"error":"bad pin"}
 /// ```
-/// The status is green for 2xx, cyan for 3xx, yellow for 4xx and red for
-/// 5xx. Values of the configured redaction keys are masked. Add it instead
+/// The status is green for 2xx, light yellow for 3xx, yellow for 4xx and
+/// magenta for 5xx; a rule's error on a lower status is red. Values of the configured redaction keys are masked. Add it instead
 /// of a Dio pretty logger: `dio.interceptors.add(TidyDioInterceptor())`.
 ///
 /// [rules] classify responses by their body, for backends that answer 200
@@ -77,13 +77,23 @@ final class TidyDioInterceptor extends Interceptor {
       durationMs: start is DateTime ? now.difference(start).inMilliseconds : null,
       time: start is DateTime ? _hms(start) : null,
       outcome: verdict?.outcome,
-      verdict: verdict?.message == null ? null : TidyLog.redact(verdict!.message!),
-      rule: verdict?.reason == null ? null : TidyLog.redact(verdict!.reason!),
-      body: show && options.data != null ? TidyLog.redact('${options.data}') : null,
-      response: show && data != null ? TidyLog.redact('$data') : null,
+      verdict: verdict?.message,
+      rule: verdict?.reason,
+      body: show ? _requestData(options.data) : null,
+      response: show ? data : null,
+      redact: TidyLog.redact,
     );
     TidyLog.emit(entry, level: _level(outcome));
   }
+
+  /// Form uploads as their fields and file names, everything else as is.
+  static Object? _requestData(Object? data) => switch (data) {
+    FormData() => {
+      for (final field in data.fields) field.key: field.value,
+      for (final file in data.files) file.key: '<file ${file.value.filename ?? ''} (${file.value.length} bytes)>',
+    },
+    _ => data,
+  };
 
   /// The first verdict from the rules. A rule that throws is reported once
   /// and skipped, so a bug in a rule never hides the call itself.

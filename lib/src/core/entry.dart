@@ -1,7 +1,31 @@
 /// The visual role of a piece of text. The renderer maps tones to ANSI styles
 /// (or drops them in plain mode), so formatting logic never deals with escape
 /// codes directly.
-enum Tone { plain, dim, secondary, error, errorBold, warning, accent, accentBold, success, successBold }
+enum Tone {
+  plain,
+  dim,
+  secondary,
+  error,
+  errorBold,
+  warning,
+  accent,
+  accentBold,
+  success,
+  successBold,
+
+  /// 3xx and informational HTTP outcomes.
+  info,
+
+  /// A 5xx server error, apart from errors the API itself reports.
+  serverError,
+  serverErrorBold,
+
+  /// A source location (`lib/a.dart:12:3`, `Main.kt:40`).
+  path,
+
+  /// A source location in a dimmed trail.
+  pathDim,
+}
 
 /// A run of text with one tone.
 final class Span {

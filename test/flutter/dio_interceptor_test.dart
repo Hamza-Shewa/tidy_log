@@ -30,9 +30,10 @@ void main() {
       throwsA(isA<DioException>()),
     );
     expect(printed, [
-      'POST /api/Auth/Signin  10.0.0.1:4013  401  1,003 ms · 15:21:09',
-      '    body  {userId: 1, pin: ••••••••}',
-      '    resp  {error: bad pin}',
+      '${'POST'.padRight(7)}${'/api/Auth/Signin'.padRight(46)}  401  ${'1,003 ms'.padLeft(9)}  15:21:09  10.0.0.1:4013',
+      '    body  userId: 1',
+      '          pin: ••••••••',
+      '    resp  error: bad pin',
     ]);
   });
 
@@ -41,7 +42,26 @@ void main() {
       FakeAdapter(error: const SocketException('Connection refused', osError: OSError('Connection refused', 111))),
     );
     await expectLater(client.get<Object?>('/api/ping'), throwsA(isA<DioException>()));
-    expect(printed.single, 'GET /api/ping  10.0.0.1:4013  ERR connection refused  1,003 ms · 15:21:09');
+    expect(printed, [
+      '${'GET'.padRight(7)}${'/api/ping'.padRight(46)}  ERR  ${'1,003 ms'.padLeft(9)}  15:21:09  10.0.0.1:4013',
+      '    ✕ connection refused',
+    ]);
+  });
+
+  test('secrets in the URL are masked, like in the body', () async {
+    final client = dio(FakeAdapter(body: '{}'));
+    await client.get<Object?>('/api/Auth/SoftOtp', queryParameters: {'softToken': '2A7C2544', 'lang': 'ar'});
+    expect(printed.single, contains('/api/Auth/SoftOtp?softToken=••••••••&lang=ar'));
+    expect(printed.join('\n'), isNot(contains('2A7C2544')));
+  });
+
+  test('a form upload shows its fields and file names', () async {
+    final client = dio(FakeAdapter(body: '{}'));
+    await client.post<Object?>(
+      '/api/upload',
+      data: FormData.fromMap({'name': 'passport', 'file': MultipartFile.fromString('abc', filename: 'scan.png')}),
+    );
+    expect(printed.skip(1), ['    body  name: passport', '          file: <file scan.png (3 bytes)>']);
   });
 
   test('logBodies: false keeps bodies out of the log', () async {
@@ -50,6 +70,6 @@ void main() {
       ..interceptors.add(TidyDioInterceptor(logBodies: false, clock: () => times.removeAt(0)));
     await client.post<Object?>('/a', data: {'a': 1});
     expect(printed, hasLength(1));
-    expect(printed.single, startsWith('POST /a  h  200'));
+    expect(printed.single, matches(RegExp(r'^POST +/a +200  ')));
   });
 }
