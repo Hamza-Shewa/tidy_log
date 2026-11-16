@@ -22,7 +22,7 @@ HttpOutcome httpOutcome({int? status, String? error}) => switch (status) {
 /// ```
 /// The status is green for 2xx, cyan for 3xx, yellow for 4xx and red for
 /// 5xx. An [outcome] (from a response rule) overrides that colour, and a
-/// [verdict] is shown after the status: `200 ✗ unvalid api sign`. [rule]
+/// [verdict] is shown after the status: `200 ✕ unvalid api sign`. [rule]
 /// says which rule decided, on its own detail line.
 ///
 /// Used by the Dio box restyler and by the in-app Dio interceptor.
@@ -75,11 +75,15 @@ Tone _statusTone(HttpOutcome outcome) => switch (outcome) {
   HttpOutcome.error => Tone.errorBold,
 };
 
-/// `✗ reason` for errors, `! reason` for warnings, `· reason` otherwise.
+/// `✕ reason` for errors, `! reason` for warnings, `· reason` otherwise.
+///
+/// Not `✗`: on Windows the Flutter tool rewrites `✗` to `X` in app output
+/// when the terminal reports no emoji support (flutter_tools'
+/// WindowsStdoutLogger).
 Span? _marker(HttpOutcome outcome, String? verdict) {
   final text = verdict == null || verdict.isEmpty ? null : cap(verdict.replaceAll('\n', ' '), 80);
   return switch (outcome) {
-    HttpOutcome.error => Span(text == null ? ' ✗' : ' ✗ $text', Tone.error),
+    HttpOutcome.error => Span(text == null ? ' ✕' : ' ✕ $text', Tone.error),
     HttpOutcome.warning => Span(text == null ? ' !' : ' ! $text', Tone.warning),
     _ => text == null ? null : Span(' · $text', Tone.secondary),
   };

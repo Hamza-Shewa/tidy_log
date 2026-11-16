@@ -22,7 +22,7 @@ final class RuleVerdict {
 
   final HttpOutcome outcome;
 
-  /// Shown after the status: `200 ✗ <message>`.
+  /// Shown after the status: `200 ✕ <message>`.
   final String? message;
 
   /// Which rule decided and why, shown on a `rule` line:

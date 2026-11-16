@@ -30,7 +30,7 @@ void main() {
   });
 
   group('an outcome from a response rule', () {
-    test('turns a 200 red and shows the verdict after a ✗', () {
+    test('turns a 200 red and shows the verdict after a ✕', () {
       final entry = httpEntry(
         method: 'post',
         url: 'http://10.0.2.2:4013/api/Auth/OpenSession',
@@ -42,7 +42,7 @@ void main() {
       );
       expect(_statusCode(entry, '200'), '1;31');
       expect(_plain.render(entry), [
-        'POST /api/Auth/OpenSession  10.0.2.2:4013  200 ✗ unvalid api sign',
+        'POST /api/Auth/OpenSession  10.0.2.2:4013  200 ✕ unvalid api sign',
         '    rule  type = 2 → error',
         '    resp  {type: 2}',
       ]);
@@ -61,7 +61,7 @@ void main() {
     test('a long or multi-line verdict is shortened to one line', () {
       final entry = httpEntry(method: 'GET', url: '/s', status: 200, outcome: HttpOutcome.error, verdict: 'line one\n${'x' * 200}');
       final head = _plain.render(entry).single;
-      expect(head, startsWith('GET /s  200 ✗ line one x'));
+      expect(head, startsWith('GET /s  200 ✕ line one x'));
       expect(head, endsWith('…'));
       expect(head.length, lessThan(110));
     });

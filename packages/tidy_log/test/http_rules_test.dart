@@ -42,7 +42,7 @@ void main() {
   group('ResponseRule.field', () {
     test('a 200 with success: false is logged as an error with its message', () async {
       final out = await call({'success': false, 'message': 'Insufficient balance'}, rules: [success]);
-      expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200 ✗ Insufficient balance'));
+      expect(out.first, startsWith('POST /api/Auth/OpenSession  h  200 ✕ Insufficient balance'));
       expect(out[1], '    rule  success = false → error');
     });
 
@@ -72,7 +72,7 @@ void main() {
         'type': 2,
         'messages': ['unvalid api sign'],
       }, rules: [rule]);
-      expect(out.first, contains('200 ✗ unvalid api sign'));
+      expect(out.first, contains('200 ✕ unvalid api sign'));
     });
 
     test('a dotted path reaches into nested objects and lists', () async {
@@ -84,12 +84,12 @@ void main() {
           ],
         },
       }, rules: [rule]);
-      expect(out.first, contains('200 ✗ Daily limit reached'));
+      expect(out.first, contains('200 ✕ Daily limit reached'));
     });
 
     test('a JSON body that arrives as text is decoded for the rule', () async {
       final out = await call('{"success": false, "message": "plain text body"}', rules: [success], contentType: 'text/plain');
-      expect(out.first, contains('200 ✗ plain text body'));
+      expect(out.first, contains('200 ✕ plain text body'));
     });
 
     test('an unlisted value uses otherwise, or leaves the status colour when there is none', () async {
@@ -105,9 +105,9 @@ void main() {
 
     test('when limits a rule to some requests', () async {
       final rule = ResponseRule.field('success', {false: HttpOutcome.error}, when: (o) => o.path.startsWith('/api/Auth'));
-      expect((await call({'success': false}, rules: [rule], path: '/api/other')).first, isNot(contains('✗')));
+      expect((await call({'success': false}, rules: [rule], path: '/api/other')).first, isNot(contains('✕')));
       printed.clear();
-      expect((await call({'success': false}, rules: [rule])).first, contains('200 ✗'));
+      expect((await call({'success': false}, rules: [rule])).first, contains('200 ✕'));
     });
 
     test('rules also run on error responses: a 400 can be just a warning', () async {
@@ -131,7 +131,7 @@ void main() {
     test('the verdict message is redacted', () async {
       final rule = ResponseRule.field('ok', {false: HttpOutcome.error}, message: 'detail');
       final out = await call({'ok': false, 'detail': 'bad token: abc'}, rules: [rule]);
-      expect(out.first, contains('✗ bad token: ••••••••'));
+      expect(out.first, contains('✕ bad token: ••••••••'));
     });
   });
 
@@ -141,7 +141,7 @@ void main() {
         (r) => (r.data as Map)['errors'] != null ? const RuleVerdict(HttpOutcome.error, message: 'has errors', reason: 'errors present') : null,
       );
       final out = await call({'errors': ['x']}, rules: [rule]);
-      expect(out.first, contains('200 ✗ has errors'));
+      expect(out.first, contains('200 ✕ has errors'));
       expect(out[1], '    rule  errors present');
     });
 
@@ -149,15 +149,15 @@ void main() {
       final broken = ResponseRule.custom((r) => throw StateError('rule bug'));
       final out = await call({'success': false}, rules: [broken, success]);
       expect(out.first, startsWith('WRN Response rule failed: Bad state: rule bug'));
-      expect(out.firstWhere((l) => l.startsWith('POST')), contains('200 ✗'), reason: 'the next rule still runs');
+      expect(out.firstWhere((l) => l.startsWith('POST')), contains('200 ✕'), reason: 'the next rule still runs');
     });
   });
 
   test('global rules from configure apply when the interceptor has none', () async {
     TidyLog.configure(httpRules: [success]);
-    expect((await call({'success': false})).first, contains('200 ✗'));
+    expect((await call({'success': false})).first, contains('200 ✕'));
     printed.clear();
-    expect((await call({'success': false}, rules: const [])).first, isNot(contains('✗')), reason: 'an explicit empty list means no rules');
+    expect((await call({'success': false}, rules: const [])).first, isNot(contains('✕')), reason: 'an explicit empty list means no rules');
   });
 
   group('httpBodies', () {
@@ -187,6 +187,6 @@ void main() {
   test('the outcome sets the level, so minLevel can hide successful calls', () async {
     TidyLog.configure(minLevel: Level.warning);
     expect(await call({'ok': true}), isEmpty);
-    expect((await call({'success': false}, rules: [success])).first, contains('200 ✗'));
+    expect((await call({'success': false}, rules: [success])).first, contains('200 ✕'));
   });
 }

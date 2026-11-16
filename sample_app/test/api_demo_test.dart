@@ -105,10 +105,10 @@ void main() {
       final heads = [for (final l in printed) if (l.startsWith('GET') || l.startsWith('POST')) l.split(RegExp(r'\s{2}\d[\d,]* ms')).first];
       expect(heads, [
         'GET /api/balance  ${server.baseUri.authority}  200 · OK',
-        'POST /api/wallet/pay  ${server.baseUri.authority}  200 ✗ Insufficient balance',
+        'POST /api/wallet/pay  ${server.baseUri.authority}  200 ✕ Insufficient balance',
         'GET /api/session  ${server.baseUri.authority}  200 ! Session expires in 2 minutes',
-        'POST /api/Auth/OpenSession  ${server.baseUri.authority}  200 ✗ unvalid api sign',
-        'POST /api/cards/activate  ${server.baseUri.authority}  400 ✗ Card is blocked',
+        'POST /api/Auth/OpenSession  ${server.baseUri.authority}  200 ✕ unvalid api sign',
+        'POST /api/cards/activate  ${server.baseUri.authority}  400 ✕ Card is blocked',
         'GET /api/accounts  ${server.baseUri.authority}  200',
       ]);
       expect(printed, contains('    rule  type = 2 → error'));

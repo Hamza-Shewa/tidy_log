@@ -260,7 +260,7 @@ final List<Scenario> scenarios = [
     id: 'api-rule-success-false',
     group: ScenarioGroup.api,
     title: '200 with success: false',
-    expected: 'POST /api/wallet/pay  200 ✗ Insufficient balance (red)',
+    expected: 'POST /api/wallet/pay  200 ✕ Insufficient balance (red)',
     run: (_, d) => d.api.payBill(),
   ),
   Scenario(
@@ -274,14 +274,14 @@ final List<Scenario> scenarios = [
     id: 'api-rule-type-code',
     group: ScenarioGroup.api,
     title: '200 with an error code (type: 2)',
-    expected: 'POST /api/Auth/OpenSession  200 ✗ unvalid api sign',
+    expected: 'POST /api/Auth/OpenSession  200 ✕ unvalid api sign',
     run: (_, d) => d.api.openSession(),
   ),
   Scenario(
     id: 'api-rule-400-error',
     group: ScenarioGroup.api,
     title: '400 with response_type ERROR',
-    expected: 'POST /api/cards/activate  400 ✗ Card is blocked',
+    expected: 'POST /api/cards/activate  400 ✕ Card is blocked',
     run: (_, d) => d.api.activateCard(),
   ),
   Scenario(
