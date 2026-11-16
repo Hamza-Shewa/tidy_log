@@ -24,12 +24,18 @@ final _sourceLocation = RegExp(r'((?:package:|file://)\S+?\.dart|lib/\S+?\.dart)
 ///
 /// It is synchronous and has no timers or IO, so it is easy to test. The
 /// wrapper calls [flush] when the output goes quiet, so held-back lines
-/// (open blocks, repeat counts) still show up promptly.
+/// (open blocks, repeat counts) still show up promptly. [clock] is only read
+/// to tell how long an HTTP box has been waiting for its last lines.
+///
+/// Every entry is redacted before it is emitted, coloured lines from other
+/// logging packages included; only TidyLog's own lines (see
+/// [isTidyLogLine]), already redacted in the app, pass through untouched.
 final class ConsolePipeline {
-  ConsolePipeline(this.config)
+  ConsolePipeline(this.config, {DateTime Function()? clock})
     : _filter = NoiseFilter(config),
       _redactor = Redactor(config.redactKeys),
       _restyler = Restyler(config),
+      _folder = BlockFolder(clock: clock),
       _http = PrettyHttpPairer(redact: Redactor(config.redactKeys).apply, rules: config.httpRules);
 
   final TidyConfig config;
@@ -37,7 +43,7 @@ final class ConsolePipeline {
   final Redactor _redactor;
   final Restyler _restyler;
   final PrettyHttpPairer _http;
-  final _folder = BlockFolder();
+  final BlockFolder _folder;
   final _collapser = RepeatCollapser();
   final _seenPids = <int>{};
   int? _currentPid;
@@ -75,11 +81,24 @@ final class ConsolePipeline {
     return out;
   }
 
-  /// Emits everything held back.
-  /// Ends the run: everything [flush] emits, plus HTTP requests that never
-  /// got their response (an idle [flush] keeps waiting for those).
-  List<Entry> finish() => [...flush(), for (final entry in _http.finish()) ..._emit(entry), ..._collapser.flush()];
+  /// Ends the run: everything [flush] emits, plus HTTP boxes still waiting
+  /// for their last lines and requests that never got their response (an
+  /// idle [flush] keeps waiting for those).
+  List<Entry> finish() => [
+    ..._closeBlocks(_folder.flush(force: true)),
+    ...flush(),
+    for (final entry in _http.finish()) ..._emit(entry),
+    ..._collapser.flush(),
+  ];
 
+  /// Whether an HTTP box is held back, waiting for the rest of its lines:
+  /// call [flush] again a little later (two seconds) so it is not held until
+  /// the next line arrives.
+  bool get holdsPartialBox => _folder.holdsBox;
+
+  /// Emits everything held back, except an HTTP box that is still waiting
+  /// for its last lines (it is closed by a later [flush] once it has waited
+  /// long enough, or by [finish]).
   List<Entry> flush() => [
     ..._closeBlocks(_folder.flush()),
     if (_box != null) ..._emit(_frameworkError()),
@@ -100,15 +119,31 @@ final class ConsolePipeline {
     while (block.messages.length > 1 && block.messages.last.trim().isEmpty) {
       block.messages.removeLast();
     }
+    // The rest of a box that was closed early is counted, never printed:
+    // it can hold the tail of a wrapped token.
+    if (block.boxTail) return _emit(_hiddenBoxLines(block.lineCount));
     final box = block.isPrettyBox ? PrettyBox.parse(block.messages) : null;
-    if (box != null) return [for (final entry in _http.add(box)) ..._emit(entry)];
+    if (box != null) {
+      return [
+        for (final entry in _http.add(box)) ..._emit(entry),
+        if (block.dropped > 0) ..._emit(_hiddenBoxLines(block.dropped)),
+      ];
+    }
     return _emit(_restyler.restyle(block, currentPid: _currentPid));
   }
+
+  static Entry _hiddenBoxLines(int count) =>
+      Entry(head: [Span('    ┊ … $count more HTTP box ${count == 1 ? 'line' : 'lines'} not shown', Tone.dim)]);
 
   List<Entry> _emit(Entry entry) => _collapser.add(_redact(entry));
 
   Entry _redact(Entry entry) {
-    if (entry.preRendered) return entry;
+    if (entry.preRendered) {
+      // Coloured lines from other logging packages are redacted too, colour
+      // codes and all; only TidyLog's own lines are trusted.
+      final line = entry.head.map((s) => s.text).join();
+      return isTidyLogLine(line) ? entry : Entry.raw(_redactor.apply(line));
+    }
     List<Span> map(List<Span> spans) => [for (final s in spans) Span(_redactor.apply(s.text), s.tone)];
     return Entry(
       head: map(entry.head),
@@ -119,6 +154,7 @@ final class ConsolePipeline {
   }
 
   Entry _rawLine(String line) {
+    // Kept as printed, but redacted in [_redact] unless TidyLog printed it.
     if (startsWithAnsi(line)) return Entry.raw(line);
     final again = _again.firstMatch(line);
     if (again != null) {

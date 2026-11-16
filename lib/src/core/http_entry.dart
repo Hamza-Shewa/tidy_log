@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'console/redactor.dart' show Redactor;
 import 'entry.dart';
 
 /// How an HTTP exchange went, as the app sees it. Usually follows the status
@@ -39,6 +40,12 @@ HttpOutcome httpOutcome({int? status, String? error}) => switch (status) {
 /// laid out (for example from another logger's output). Every line, the
 /// path included, goes through [redact].
 ///
+/// A key that [redact] masks (in `key: x`) is masked as a whole wherever it
+/// appears: in the URL query, where the raw value is masked before anything
+/// is percent-decoded (`password=Tom%26Jerry` cannot leave `&Jerry`
+/// behind), and in bodies, where the key prints `key: ••••••••` and nothing
+/// under it is laid out.
+///
 /// Used by the Dio box restyler, the pretty_dio_logger pairer and the
 /// in-app Dio interceptor.
 Entry httpEntry({
@@ -58,9 +65,10 @@ Entry httpEntry({
   String Function(String)? redact,
 }) {
   final r = redact ?? _same;
+  bool secret(String key) => redact != null && r('$key: x') != '$key: x';
   final uri = Uri.tryParse(url);
   final hasHost = uri != null && uri.host.isNotEmpty;
-  final rawPath = !hasHost ? url : _decoded(uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
+  final rawPath = _displayTarget(!hasHost ? url : (uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path), secret);
   final path = r(rawPath.isEmpty ? '/' : rawPath);
   final host = !hasHost ? '' : '${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
   final effective = outcome ?? httpOutcome(status: status, error: error);
@@ -99,8 +107,12 @@ Entry httpEntry({
       if (reason != null) _reasonLine(error != null ? HttpOutcome.error : effective, r(reason), server: server),
       if (rule != null && (effective == HttpOutcome.warning || effective == HttpOutcome.error))
         [const Span('rule  ', Tone.dim), Span(r(rule), Tone.secondary)],
-      ..._section('body', bodyLines ?? dataLines(body), r),
-      ..._section('resp', responseLines ?? dataLines(response), r),
+      ..._section('body', bodyLines != null ? _maskNested(bodyLines, secret) : dataLines(body, secret: secret), r),
+      ..._section(
+        'resp',
+        responseLines != null ? _maskNested(responseLines, secret) : dataLines(response, secret: secret),
+        r,
+      ),
     ],
   );
 }
@@ -156,14 +168,18 @@ List<List<Span>> _section(String label, List<String> lines, String Function(Stri
 /// Lays out data one field per line: maps as `key: value` with nested maps
 /// indented, lists inline when short and as `- item` lines otherwise, JSON
 /// text decoded, other text split into its lines. Empty data gives no lines.
-List<String> dataLines(Object? data) {
+///
+/// A map key for which [secret] is true prints `key: ••••••••`, whatever its
+/// value (a map, a list, a multi-word string), and its children are not laid
+/// out.
+List<String> dataLines(Object? data, {bool Function(String key)? secret}) {
   if (data == null) return const [];
   if (data is String) {
     final text = data.trim();
     if (text.isEmpty) return const [];
     if (text.startsWith('{') || text.startsWith('[')) {
       try {
-        return dataLines(jsonDecode(text));
+        return dataLines(jsonDecode(text), secret: secret);
       } on FormatException {
         // Not JSON: show it as text.
       }
@@ -177,9 +193,11 @@ List<String> dataLines(Object? data) {
   }
   if (data is Map && data.isEmpty || data is List && data.isEmpty) return const [];
   final out = <String>[];
-  _layout(data, '', out);
+  _layout(data, '', out, secret ?? _never);
   return out;
 }
+
+bool _never(String key) => false;
 
 /// `{a: 1, b: [x, y], c: {d: 2}}` (a Dart map's `toString`) as its top-level
 /// `key: value` fields, or null when [text] does not look like one.
@@ -203,14 +221,14 @@ List<String>? _dartMapFields(String text) {
   return fields.every(keyed.hasMatch) ? fields : null;
 }
 
-void _layout(Object? value, String indent, List<String> out) {
+void _layout(Object? value, String indent, List<String> out, bool Function(String) secret) {
   if (value is Map) {
-    value.forEach((key, child) => _field('$key', child, indent, out));
+    value.forEach((key, child) => _field('$key', child, indent, out, secret));
   } else if (value is List) {
     for (final item in value) {
       if (item is Map && item.isNotEmpty) {
         final itemLines = <String>[];
-        _layout(item, '', itemLines);
+        _layout(item, '', itemLines, secret);
         for (var i = 0; i < itemLines.length; i++) {
           out.add('$indent${i == 0 ? '- ' : '  '}${itemLines[i]}');
         }
@@ -223,22 +241,60 @@ void _layout(Object? value, String indent, List<String> out) {
   }
 }
 
-void _field(String key, Object? value, String indent, List<String> out) {
-  if (value is Map && value.isNotEmpty) {
+void _field(String key, Object? value, String indent, List<String> out, bool Function(String) secret) {
+  if (_hasContent(value) && secret(key)) {
+    out.add('$indent$key: ${Redactor.mask}');
+  } else if (value is Map && value.isNotEmpty) {
     out.add('$indent$key:');
-    _layout(value, '$indent  ', out);
+    _layout(value, '$indent  ', out, secret);
   } else if (value is List && value.isNotEmpty) {
     final inline = value.every((v) => v is! Map && v is! List) ? '[${value.map(_scalar).join(', ')}]' : null;
     if (inline != null && inline.length <= 80) {
       out.add('$indent$key: $inline');
     } else {
       out.add('$indent$key:');
-      _layout(value, '$indent  ', out);
+      _layout(value, '$indent  ', out, secret);
     }
   } else {
     out.add('$indent$key: ${_scalar(value)}');
   }
 }
+
+/// False for values that show as empty (`null`, `""`, `{}`, `[]`): those
+/// stay visible under a sensitive key, as the text redactor leaves them.
+bool _hasContent(Object? value) => switch (value) {
+  null => false,
+  String() => value.isNotEmpty,
+  Map() => value.isNotEmpty,
+  List() => value.isNotEmpty,
+  _ => true,
+};
+
+/// Lines laid out by another logger (`token:` with its children indented
+/// under it): a sensitive key with nothing after its colon becomes
+/// `token: ••••••••` and the more indented lines under it are dropped.
+List<String> _maskNested(List<String> lines, bool Function(String) secret) {
+  final out = <String>[];
+  int? hiddenUnder;
+  for (final line in lines) {
+    final indent = line.length - line.trimLeft().length;
+    if (hiddenUnder != null) {
+      if (line.trim().isEmpty || indent > hiddenUnder) continue;
+      hiddenUnder = null;
+    }
+    final parent = _parentKey.firstMatch(line);
+    if (parent != null && secret(parent[2]!)) {
+      out.add('${parent[1]}${parent[2]}: ${Redactor.mask}');
+      hiddenUnder = indent;
+    } else {
+      out.add(line);
+    }
+  }
+  return out;
+}
+
+/// `  - token:` → indent and `- ` (group 1), key (group 2).
+final _parentKey = RegExp(r'^(\s*(?:- )?)([^\s:][^:]*?):\s*$');
 
 String _scalar(Object? value) => switch (value) {
   null => 'null',
@@ -255,12 +311,36 @@ String cap(String text, [int max = 300]) => text.length <= max ? text : '${text.
 /// `74991` → `74,991`.
 String thousands(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 
+/// A path and query as printed: query values of [secret] keys masked on the
+/// raw text, then everything percent-decoded for reading. The key is decoded
+/// before it is tested (`user%5Bpassword%5D`); the value is replaced whole,
+/// before decoding, so an encoded `&`, `,` or space cannot end the mask
+/// early.
+String _displayTarget(String target, bool Function(String) secret) {
+  final q = target.indexOf('?');
+  if (q < 0) return _decoded(target);
+  final pairs = [
+    for (final pair in target.substring(q + 1).split('&'))
+      if (pair.indexOf('=') case final eq when eq > 0)
+        _queryPair(_decoded(pair.substring(0, eq)), pair.substring(eq + 1), secret)
+      else
+        _decoded(pair),
+  ];
+  return '${_decoded(target.substring(0, q))}?${pairs.join('&')}';
+}
+
+String _queryPair(String key, String rawValue, bool Function(String) secret) =>
+    '$key=${rawValue.isNotEmpty && secret(key) ? Redactor.mask : _decoded(rawValue)}';
+
 /// Percent-decoded for reading (`%3Credacted%3E` → `<redacted>`); left as is
-/// when it is not valid percent-encoding.
+/// when it is not valid percent-encoding (a malformed escape) or does not
+/// decode to UTF-8 (`Jos%E9`).
 String _decoded(String text) {
   try {
     return Uri.decodeFull(text);
   } on ArgumentError {
+    return text;
+  } on FormatException {
     return text;
   }
 }

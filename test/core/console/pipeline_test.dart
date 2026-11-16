@@ -153,4 +153,127 @@ void main() {
       'SVG Svg loader: unhandled element',
     );
   });
+
+  group('coloured lines', () {
+    const styled = Renderer(includeSource: false);
+    const plainCopy = Renderer(color: false);
+    String only(List<String> out) => out.where((l) => !l.contains('app started')).single;
+
+    for (final (name, line) in [
+      ('a logger-style line', 'I/flutter (1): \x1B[38;5;12mpassword: hunter2\x1B[0m'),
+      ('a colour code right before the key', 'I/flutter (1): \x1B[33mtoken=hunter2\x1B[0m'),
+      ('a line without the logcat prefix', '\x1B[31mpassword: hunter2\x1B[0m'),
+    ]) {
+      test('$name from another logging package is redacted in the console and in the plain copy', () {
+        final console = only(clean([line], renderer: styled));
+        final copy = only(clean([line], renderer: plainCopy));
+        expect(console, isNot(contains('hunter2')));
+        expect(console, contains('••••••••\x1B[0m'), reason: 'colours are kept, the reset outside the mask');
+        expect(copy, isNot(contains('hunter2')));
+        expect(copy, isNot(contains('\x1B[')));
+        expect(copy, endsWith('••••••••'));
+      });
+    }
+
+    test("TidyLog's own lines (starting with a reset) pass through as printed", () {
+      const line = '\x1B[0m\x1B[90msecret: already redacted in the app\x1B[0m';
+      expect(only(clean(['I/flutter (1): $line'], renderer: styled)), line);
+    });
+  });
+
+  group('a pretty_dio_logger box that is split', () {
+    const p = 'I/flutter (1): ';
+    final rule = '╚${'═' * 40}╝';
+    List<String> response(List<String> body) => [
+      '$p╔╣ Response ║ GET ║ Status: 200 OK',
+      '$p║  http://h/api/session',
+      '$p$rule',
+      '$p╔ Body',
+      '$p║',
+      '$p║    {',
+      ...body,
+      '$p║    }',
+      '$p$rule',
+    ];
+    List<String> render(List<Entry> entries) => [for (final e in entries) ...plain.render(e)];
+
+    test('a native line inside the box neither splits it nor spills the wrapped token', () {
+      final out = clean(
+        response([
+          '$p║         sessionKey: "abc123def456ghi789jkl',
+          'W/MyPlugin(1): plugin warning',
+          '$p║         mno345pqr678stu901vwx",',
+          '$p║         userId: 7',
+        ]),
+        config: TidyConfig(redactKeys: const ['sessionkey']),
+      );
+      final all = out.join('\n');
+      expect(all, isNot(contains('jkl')));
+      expect(all, isNot(contains('mno345')));
+      expect(all, contains('sessionKey: ••••••••'));
+      expect(all, contains('userId: 7'));
+      expect(all, contains('plugin warning'));
+      expect(all, isNot(contains('║')));
+    });
+
+    test('an idle flush in the middle of a box waits for the rest of it', () {
+      final pipeline = ConsolePipeline(TidyConfig());
+      final lines = response([
+        '$p║         note: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIi',
+        '$p║         OiIxMjM0NTY3ODkwIn0.dozjgNryP4J3',
+        '$p║         jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"',
+      ]);
+      final first = [for (final l in lines.take(7)) ...pipeline.add(l), ...pipeline.flush()];
+      expect(render(first).where((l) => !l.startsWith('────')), isEmpty);
+      expect(pipeline.holdsPartialBox, isTrue);
+      final rest = [for (final l in lines.skip(7)) ...pipeline.add(l), ...pipeline.flush()];
+      final all = render([...first, ...rest]).join('\n');
+      expect(all, isNot(contains('OiIxMjM0')));
+      expect(all, isNot(contains('jVmNHl0w5N')));
+      expect(all, contains('GET    /api/session'));
+      expect(pipeline.holdsPartialBox, isFalse);
+    });
+
+    test('a box that waited too long is closed, and its late lines are counted, not printed', () {
+      var now = DateTime(2026);
+      final pipeline = ConsolePipeline(TidyConfig(), clock: () => now);
+      final lines = response([
+        '$p║         note: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIi',
+        '$p║         OiIxMjM0NTY3ODkwIn0.dozjgNryP4J3',
+        '$p║         jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"',
+      ]);
+      final first = [for (final l in lines.take(7)) ...pipeline.add(l)];
+      now = now.add(const Duration(seconds: 3));
+      first.addAll(pipeline.flush());
+      expect(render(first).join('\n'), contains('GET    /api/session'));
+      final rest = render([for (final l in lines.skip(7)) ...pipeline.add(l), ...pipeline.flush()]);
+      expect(rest, ['    ┊ … 4 more HTTP box lines not shown']);
+      final all = render(first).join('\n');
+      expect(all, isNot(contains('eyJzdWIi')));
+    });
+
+    test('a 600-line body is read up to the cap; the rest is counted, not printed raw', () {
+      final pipeline = ConsolePipeline(TidyConfig());
+      final lines = response([for (var i = 0; i < 600; i++) '$p║         id: $i,']);
+      final out = render([for (final l in lines) ...pipeline.add(l), ...pipeline.finish()]);
+      expect(out.where((l) => l.contains('║') || l.contains('id: 599')), isEmpty);
+      expect(out.where((l) => l.startsWith('GET ')), hasLength(1));
+      expect(out.last, matches(RegExp(r'^    ┊ … \d+ more HTTP box lines not shown$')));
+      expect(out.length, lessThan(25));
+    });
+  });
+
+  test('a URL that does not decode to UTF-8 is shown as printed instead of throwing', () {
+    const p = 'I/flutter (1): ';
+    final rule = '╚${'═' * 40}╝';
+    final out = clean([
+      '$p╔╣ Request ║ GET ',
+      '$p║  http://h/api/user?name=Jos%E9',
+      '$p$rule',
+      '$p╔╣ Response ║ GET ║ Status: 200 OK',
+      '$p║  http://h/api/user?name=Jos%E9',
+      '$p$rule',
+    ]);
+    expect(out.where((l) => l.startsWith('GET ')).single, startsWith('GET    /api/user?name=Jos%E9 '));
+  });
 }

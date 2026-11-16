@@ -91,6 +91,16 @@ final class TidyConfig {
     'secret',
     'cvv',
     'authorization',
+    'pincode',
+    'otpcode',
+    'cvv2',
+    'cvc',
+    'apikey',
+    'cookie',
+    'setcookie',
+    'sessionid',
+    'privatekey',
+    'accesskey',
   ];
 
   final Preset preset;

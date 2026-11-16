@@ -33,8 +33,9 @@ final class PrettyBox {
   final PrettyKind kind;
   final String? method;
 
-  /// Decoded, without a trailing `?`: the key that pairs a request with its
-  /// response.
+  /// As printed, without a trailing `?`: the key that pairs a request with
+  /// its response. It is not percent-decoded here: [httpEntry] masks the
+  /// query on the raw text and decodes it once, for display.
   final String? url;
   final int? status;
 
@@ -114,13 +115,7 @@ final class PrettyBox {
 
   static String? _normalizeUrl(String? url) {
     if (url == null || url.isEmpty) return null;
-    var decoded = url;
-    try {
-      decoded = Uri.decodeFull(url);
-    } on ArgumentError {
-      // Keep it as printed.
-    }
-    return decoded.endsWith('?') ? decoded.substring(0, decoded.length - 1) : decoded;
+    return url.endsWith('?') ? url.substring(0, url.length - 1) : url;
   }
 
   /// The body as the logger printed it, one field per line: box characters,

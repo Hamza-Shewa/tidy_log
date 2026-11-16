@@ -305,4 +305,28 @@ http_rules:
       );
     });
   });
+
+  group('box URLs', () {
+    test('are masked on the raw query, then decoded once', () {
+      final out = run([
+        ...box('Request ║ GET ', 'http://h:1/api/login?password=Tom%26Jerry1&code=%2541', ['╔ Headers ', _rule]),
+        ...box('Response ║ GET ║ Status: 200 OK', 'http://h:1/api/login?password=Tom%26Jerry1&code=%2541', [
+          '╔ Body',
+          '║    {',
+          '║         type: 1',
+          '║    }',
+          _rule,
+        ]),
+      ]);
+      expect(out.first, head('GET', '/api/login?password=••••••••&code=%41', '200', 'h:1'));
+      expect(out.join('\n'), isNot(contains('Jerry')));
+    });
+
+    test('that do not decode to UTF-8 are shown as printed instead of throwing', () {
+      final out = run([
+        ...box('Response ║ GET ║ Status: 200 OK', 'http://h:1/a?name=Jos%E9', [_rule]),
+      ]);
+      expect(out.first, head('GET', '/a?name=Jos%E9', '200', 'h:1'));
+    });
+  });
 }

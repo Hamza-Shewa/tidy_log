@@ -263,4 +263,83 @@ void main() {
     expect(httpOutcome(error: 'connection refused'), HttpOutcome.error);
     expect(httpOutcome(), HttpOutcome.success);
   });
+
+  group('secrets by key', () {
+    final redact = Redactor(TidyConfig.defaultRedactKeys).apply;
+    List<String> bodyOf(Object? body) =>
+        _plain.render(httpEntry(method: 'POST', url: '/a', status: 200, body: body, redact: redact)).skip(1).toList();
+
+    test('everything under a sensitive key is masked, not laid out', () {
+      expect(
+        bodyOf({
+          'auth': {
+            'token': {'access': 'AAA', 'refresh': 'BBB'},
+          },
+          'user': 7,
+        }),
+        ['    body  auth:', '            token: ••••••••', '          user: 7'],
+      );
+    });
+
+    test('a multi-word string, a list and a JSON text value are masked whole', () {
+      expect(bodyOf({'password': 'correct horse battery'}), ['    body  password: ••••••••']);
+      expect(
+        bodyOf({
+          'pin': [1, 2, 3, 4],
+        }),
+        ['    body  pin: ••••••••'],
+      );
+      expect(bodyOf('{"user": {"secret": "a b c"}, "n": 1}'), [
+        '    body  user:',
+        '            secret: ••••••••',
+        '          n: 1',
+      ]);
+      expect(
+        bodyOf({
+          'items': [
+            {'otp': 'x y'},
+          ],
+        }),
+        ['    body  items:', '            - otp: ••••••••'],
+      );
+    });
+
+    test('an empty value under a sensitive key stays visible', () {
+      expect(bodyOf({'token': ''}), ['    body  token: ""']);
+    });
+
+    test("another logger's laid-out lines hide what is nested under a sensitive key", () {
+      final lines = _plain
+          .render(
+            httpEntry(
+              method: 'GET',
+              url: '/a',
+              status: 200,
+              responseLines: ['auth:', '  token:', '    access: AAA', '    refresh: BBB', '  user: 7'],
+              redact: redact,
+            ),
+          )
+          .skip(1)
+          .toList();
+      expect(lines, ['    resp  auth:', '            token: ••••••••', '            user: 7']);
+    });
+
+    for (final (url, shown) in [
+      ('http://h/api/login?password=Tom%26Jerry1&x=1', '/api/login?password=••••••••&x=1'),
+      ('http://h/api/login?password=my%20secret%20pass', '/api/login?password=••••••••'),
+      ('http://h/reset?user%5Bpassword%5D=hunter2', '/reset?user[password]=••••••••'),
+      ('http://h/a?token=ab%2Ccd&q=a%20b', '/a?token=••••••••&q=a b'),
+      ('/a?token=ab%2Ccd', '/a?token=••••••••'),
+    ]) {
+      test('the query value is masked before it is decoded: $url', () {
+        final line = _plain.render(httpEntry(method: 'GET', url: url, status: 200, redact: redact)).first;
+        expect(line.substring(0, _statusColumn).trimRight(), 'GET    $shown');
+      });
+    }
+
+    test('a query that does not decode to UTF-8 is shown as printed instead of throwing', () {
+      final line = _plain.render(httpEntry(method: 'GET', url: 'http://h/a?name=Jos%E9&sig=%FF%FE', status: 200)).first;
+      expect(line, startsWith('GET    /a?name=Jos%E9&sig=%FF%FE '));
+    });
+  });
 }

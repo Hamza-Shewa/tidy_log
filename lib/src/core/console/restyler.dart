@@ -6,6 +6,7 @@ import '../record_formatter.dart';
 import '../stack_trimmer.dart';
 import 'block_folder.dart';
 import 'config.dart';
+import 'redactor.dart';
 
 final _dartFrame = RegExp(r'^#\d+\s');
 final _javaFrame = RegExp(r'^\s*at (.+)$');
@@ -18,9 +19,10 @@ const blankLabel = Span('    ');
 
 /// Turns one [Block] of logcat lines into an [Entry].
 final class Restyler {
-  Restyler(this.config);
+  Restyler(this.config) : _redactor = Redactor(config.redactKeys);
 
   final TidyConfig config;
+  final Redactor _redactor;
 
   Entry restyle(Block block, {required int? currentPid}) {
     final first = block.first;
@@ -30,6 +32,8 @@ final class Restyler {
     ].join(' · ');
     final src = source.isEmpty ? null : source;
 
+    // Passed through as printed; the pipeline still redacts it unless it is
+    // one of TidyLog's own lines (see [isTidyLogLine]).
     if (block.preRendered) return Entry.raw(first.message);
     if (block.isDioBox) return _dio(block.messages) ?? _plain(block, src);
     if (block.messages.any(_dartFrame.hasMatch)) return _dartTrace(block, src);
@@ -180,6 +184,7 @@ final class Restyler {
       time: time,
       body: body.join(' '),
       response: response,
+      redact: _redactor.apply,
     );
   }
 

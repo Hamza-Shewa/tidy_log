@@ -76,4 +76,73 @@ void main() {
     ]);
     expect(blocks.map((b) => b.length), [1, 1, 1]);
   });
+
+  group('pretty_dio_logger boxes', () {
+    const rule = '╚══════╝';
+    LogcatLine line(String text) => LogcatLine.tryParse(text)!;
+
+    test('a line from another source does not close a box', () {
+      final blocks = fold([
+        'I/flutter (1): ╔╣ Request ║ GET',
+        'W/Other(1): x',
+        'I/flutter (1): ║  http://h/a',
+        'I/flutter (1): $rule',
+      ]);
+      expect(blocks, [
+        ['x'],
+        ['╔╣ Request ║ GET', '║  http://h/a', rule],
+      ]);
+    });
+
+    test('an idle flush keeps a box open until its ╚ rule arrives', () {
+      final folder = BlockFolder();
+      expect(folder.add(line('I/flutter (1): ╔╣ Request ║ GET')), isEmpty);
+      expect(folder.add(line('I/flutter (1): ║  http://h/a')), isEmpty);
+      expect(folder.flush(), isEmpty);
+      expect(folder.holdsBox, isTrue);
+      expect(folder.add(line('I/flutter (1): $rule')), isEmpty);
+      expect(folder.flush().single.messages, hasLength(3));
+      expect(folder.holdsBox, isFalse);
+    });
+
+    test('a box that waited longer than the timeout is closed; its late lines become a counted tail', () {
+      var now = DateTime(2026);
+      final folder = BlockFolder(clock: () => now);
+      folder
+        ..add(line('I/flutter (1): ╔╣ Request ║ GET'))
+        ..add(line('I/flutter (1): ║  http://h/a'));
+      now = now.add(const Duration(seconds: 1));
+      expect(folder.flush(), isEmpty);
+      now = now.add(const Duration(seconds: 2));
+      expect(folder.flush().single.isPrettyBox, isTrue);
+      folder
+        ..add(line('I/flutter (1): ║  rest'))
+        ..add(line('I/flutter (1): $rule'));
+      final tail = folder.flush().single;
+      expect(tail.boxTail, isTrue);
+      expect(tail.lineCount, 2);
+    });
+
+    test('past the line cap a box counts its lines instead of letting them spill', () {
+      final folder = BlockFolder();
+      final closed = [
+        for (final l in [
+          'I/flutter (1): ╔╣ Response ║ GET ║ Status: 200 OK',
+          for (var i = 0; i < 600; i++) 'I/flutter (1): ║   id: $i,',
+          'I/flutter (1): $rule',
+        ])
+          ...folder.add(line(l)),
+        ...folder.flush(),
+      ];
+      expect(closed, hasLength(1));
+      expect(closed.single.messages, hasLength(400));
+      expect(closed.single.lineCount, 602);
+    });
+
+    test('a ║ line from a source that never printed a box is ordinary text', () {
+      final folder = BlockFolder();
+      folder.add(line('I/flutter (1): ║ a table drawn by someone else'));
+      expect(folder.flush().single.boxTail, isFalse);
+    });
+  });
 }
