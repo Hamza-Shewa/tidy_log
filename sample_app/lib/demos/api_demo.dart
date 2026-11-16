@@ -29,6 +29,35 @@ final class ApiDemo {
     return 'Signed in';
   }
 
+  // "200 for everything" endpoints: the app reads the field itself; the
+  // response rules in lib/api/response_rules.dart make the log line agree.
+
+  Future<String> loadBalance() async {
+    final body = (await _dio.get<Map<String, Object?>>('/api/balance')).data!;
+    return 'Balance: ${(body['data']! as Map<String, Object?>)['balance']}';
+  }
+
+  Future<String> payBill() async {
+    final body = (await _dio.post<Map<String, Object?>>('/api/wallet/pay', data: {'billId': 42, 'amount': '35.000'})).data!;
+    return body['success'] == true ? 'Paid' : 'Payment refused: ${body['message']}';
+  }
+
+  Future<String> checkSession() async {
+    final body = (await _dio.get<Map<String, Object?>>('/api/session')).data!;
+    return 'Session: ${body['response_type']}';
+  }
+
+  Future<String> openSession() async {
+    final body = (await _dio.post<Map<String, Object?>>(
+      '/api/Auth/OpenSession',
+      data: {'deviceId': 'DEVICE01', 'signToken': 'abc123'},
+    )).data!;
+    return body['type'] == 1 ? 'Session opened' : 'OpenSession refused: type ${body['type']}';
+  }
+
+  /// 400 whose body says ERROR: logged as an error by the rule.
+  Future<String> activateCard() => _expectFailure('Card activation', () => _dio.post<Object?>('/api/cards/activate', data: {'cardId': 9}), asWarning: true);
+
   /// 401: logged as a warning, the way an app would before refreshing.
   Future<String> loadProfile() => _expectFailure('Profile', () => _dio.get<Object?>('/api/profile'), asWarning: true);
 

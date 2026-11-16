@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// Pages that are wrong on purpose. Each one triggers a single, well-known
@@ -12,6 +14,8 @@ import 'package:flutter/material.dart';
 /// | [UnboundedWidthFieldPage]    | An InputDecorator … cannot have an unbounded width     |
 /// | [WrongParentDataPage]        | Incorrect use of ParentDataWidget                      |
 /// | [BrokenImagePage]            | Exception caught by image resource service             |
+/// | [RepeatingErrorPage]         | The same build error on every animation frame          |
+/// | [LateSetStatePage]           | setState() called after dispose()                      |
 class _BrokenPage extends StatelessWidget {
   const _BrokenPage({required this.title, required this.body});
 
@@ -116,4 +120,64 @@ class BrokenImagePage extends StatelessWidget {
     // Nothing listens on port 9, and there is no errorBuilder.
     body: Center(child: Image.network('http://127.0.0.1:9/avatars/7.png', width: 96, height: 96)),
   );
+}
+
+class RepeatingErrorPage extends StatefulWidget {
+  const RepeatingErrorPage({super.key});
+
+  @override
+  State<RepeatingErrorPage> createState() => _RepeatingErrorPageState();
+}
+
+/// Rebuilds a broken price ticker on every frame, the way an animated widget
+/// with a bug floods the console.
+class _RepeatingErrorPageState extends State<RepeatingErrorPage> with SingleTickerProviderStateMixin {
+  late final AnimationController _ticker = AnimationController(vsync: this, duration: const Duration(milliseconds: 500))..repeat();
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _BrokenPage(
+    title: 'Repeating error',
+    // A new widget each frame (not const), so the broken build really reruns.
+    body: AnimatedBuilder(animation: _ticker, builder: (_, _) => _PriceTicker(tick: _ticker.value)),
+  );
+}
+
+class _PriceTicker extends StatelessWidget {
+  const _PriceTicker({required this.tick});
+
+  final double tick;
+
+  @override
+  Widget build(BuildContext context) => throw StateError('Price feed not loaded');
+}
+
+class LateSetStatePage extends StatefulWidget {
+  const LateSetStatePage({super.key, this.delay = const Duration(milliseconds: 600)});
+
+  /// When the "response" arrives; the caller closes the page before that.
+  final Duration delay;
+
+  @override
+  State<LateSetStatePage> createState() => _LateSetStatePageState();
+}
+
+/// Starts a fake request and calls setState when it "returns", without
+/// checking `mounted` and without cancelling the timer in dispose().
+class _LateSetStatePageState extends State<LateSetStatePage> {
+  String _balance = 'Loading…';
+
+  @override
+  void initState() {
+    super.initState();
+    Timer(widget.delay, () => setState(() => _balance = '1,250.500 LYD'));
+  }
+
+  @override
+  Widget build(BuildContext context) => _BrokenPage(title: 'Late setState', body: Center(child: Text(_balance)));
 }

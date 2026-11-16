@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tidy_log_sample/pages/broken_pages.dart';
@@ -40,5 +42,36 @@ void main() {
     await pumpAndCollect(tester, const NullInBuildPage());
     expect(find.widgetWithText(AppBar, 'Null in build'), findsOneWidget);
     expect(find.byType(ErrorWidget), findsOneWidget);
+  });
+
+  testWidgets('the repeating page throws the same build error on every frame', (tester) async {
+    final errors = <FlutterErrorDetails>[];
+    final original = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    try {
+      await tester.pumpWidget(const MaterialApp(home: RepeatingErrorPage()));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    } finally {
+      FlutterError.onError = original;
+    }
+    expect(errors.length, greaterThanOrEqualTo(5));
+    expect(errors.map((e) => e.exceptionAsString()).toSet(), {'Bad state: Price feed not loaded'});
+  });
+
+  testWidgets('the late setState page calls setState after it was closed', (tester) async {
+    // The page's timer is created in initState, so building it inside this
+    // zone sends the timer's error here instead of failing the test.
+    final errors = <Object>[];
+    await runZonedGuarded(
+      () => tester.pumpWidget(const MaterialApp(home: LateSetStatePage(delay: Duration(milliseconds: 100)))),
+      (error, _) => errors.add(error),
+    );
+    expect(find.text('Loading…'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(errors.map((e) => '$e'), [contains('setState() called after dispose()')]);
   });
 }

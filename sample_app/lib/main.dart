@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:tidy_log/tidy_log.dart';
 
 import 'api/mock_server.dart';
+import 'api/response_rules.dart';
 import 'demos/api_demo.dart';
 import 'demos/dart_error_demo.dart';
 import 'demos/log_demo.dart';
@@ -20,9 +21,17 @@ const _tidy = bool.fromEnvironment('TIDY', defaultValue: true);
 /// `--dart-define=AUTORUN=true` taps every scenario once after start-up.
 const _autorun = bool.fromEnvironment('AUTORUN');
 
+/// `--dart-define=HTTP_BODIES=onFailure` (or `never`) hides body/resp lines
+/// of successful calls. Default `always`.
+const _httpBodies = String.fromEnvironment('HTTP_BODIES', defaultValue: 'always');
+
 Future<void> main() async {
   if (_tidy) {
-    TidyLog.configure(projectPackages: ['tidy_log_sample']);
+    TidyLog.configure(
+      projectPackages: ['tidy_log_sample'],
+      httpRules: sampleResponseRules,
+      httpBodies: HttpBodies.values.byName(_httpBodies),
+    );
     // Before any crash reporter, so it calls the tidy formatter.
     TidyLog.installErrorHooks();
   }

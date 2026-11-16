@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../pages/broken_pages.dart';
@@ -87,6 +89,40 @@ final List<Scenario> scenarios = [
     run: (_, d) => d.dart.uncaughtAsync(),
   ),
   Scenario(
+    id: 'dart-late-init',
+    group: ScenarioGroup.dart,
+    title: 'Late field read too early',
+    expected: "LateInitializationError: Field '_sessionToken' …",
+    run: (_, d) => '${d.dart.lateInit()}',
+  ),
+  Scenario(
+    id: 'dart-stream-error',
+    group: ScenarioGroup.dart,
+    title: 'Stream error with no onError',
+    expected: 'Bad state: Socket closed by the server (uncaught)',
+    run: (_, d) => d.dart.uncaughtStream(),
+  ),
+  Scenario(
+    id: 'dart-deep-recursion',
+    group: ScenarioGroup.dart,
+    title: '200-frame recursion',
+    expected: 'Location first, then a trail of 4 and a hidden count',
+    run: (_, d) => '${d.dart.deepRecursion()}',
+  ),
+  Scenario(
+    id: 'dart-set-state-after-dispose',
+    group: ScenarioGroup.dart,
+    title: 'setState after the page closed',
+    expected: 'setState() called after dispose()',
+    run: (context, _) {
+      final navigator = Navigator.of(context);
+      navigator.push(MaterialPageRoute<void>(builder: (_) => const LateSetStatePage()));
+      Timer(const Duration(milliseconds: 200), navigator.pop);
+      return null;
+    },
+    settle: const Duration(milliseconds: 1200),
+  ),
+  Scenario(
     id: 'dart-unknown-route',
     group: ScenarioGroup.dart,
     title: 'Push an unknown named route',
@@ -140,6 +176,15 @@ final List<Scenario> scenarios = [
     title: 'Expanded inside a Stack',
     expected: 'Incorrect use of ParentDataWidget',
     run: _open(const WrongParentDataPage()),
+    opensPage: true,
+    settle: const Duration(milliseconds: 1500),
+  ),
+  Scenario(
+    id: 'layout-repeating-error',
+    group: ScenarioGroup.layout,
+    title: 'Same build error every frame',
+    expected: 'Bad state: Price feed not loaded, then "thrown again" ×N',
+    run: _open(const RepeatingErrorPage()),
     opensPage: true,
     settle: const Duration(milliseconds: 1500),
   ),
@@ -203,6 +248,41 @@ final List<Scenario> scenarios = [
     title: 'Malformed JSON body',
     expected: 'GET /api/broken-json  FormatException',
     run: (_, d) => d.api.loadBrokenJson(),
+  ),
+  Scenario(
+    id: 'api-rule-success',
+    group: ScenarioGroup.api,
+    title: '200 with success: true',
+    expected: 'GET /api/balance  200 · OK (green)',
+    run: (_, d) => d.api.loadBalance(),
+  ),
+  Scenario(
+    id: 'api-rule-success-false',
+    group: ScenarioGroup.api,
+    title: '200 with success: false',
+    expected: 'POST /api/wallet/pay  200 ✗ Insufficient balance (red)',
+    run: (_, d) => d.api.payBill(),
+  ),
+  Scenario(
+    id: 'api-rule-warning',
+    group: ScenarioGroup.api,
+    title: '200 with response_type WARNING',
+    expected: 'GET /api/session  200 ! Session expires in 2 minutes',
+    run: (_, d) => d.api.checkSession(),
+  ),
+  Scenario(
+    id: 'api-rule-type-code',
+    group: ScenarioGroup.api,
+    title: '200 with an error code (type: 2)',
+    expected: 'POST /api/Auth/OpenSession  200 ✗ unvalid api sign',
+    run: (_, d) => d.api.openSession(),
+  ),
+  Scenario(
+    id: 'api-rule-400-error',
+    group: ScenarioGroup.api,
+    title: '400 with response_type ERROR',
+    expected: 'POST /api/cards/activate  400 ✗ Card is blocked',
+    run: (_, d) => d.api.activateCard(),
   ),
   Scenario(
     id: 'api-refused',

@@ -45,6 +45,22 @@ final class DartErrorDemo {
 
   int _parseAmount(String text) => int.parse(text);
 
+  /// Never assigned: stands in for a field read before `init()` ran.
+  late String _sessionToken;
+
+  /// `LateInitializationError: Field '_sessionToken' has not been initialized.`
+  int lateInit() => _sessionToken.length;
+
+  /// A stream error with no `onError`: reported as an uncaught error.
+  String uncaughtStream() {
+    Stream<int>.error(StateError('Socket closed by the server')).listen((_) {});
+    return 'Listened to a failing stream';
+  }
+
+  /// Throws at the bottom of a 200-frame recursion, to see how each console
+  /// copes with a long stack of the app's own frames.
+  int deepRecursion([int depth = 200]) => depth == 0 ? throw StateError('Reached the bottom of a 200-frame recursion') : deepRecursion(depth - 1) + 1;
+
   /// An error thrown after an `await`, with nobody listening.
   Future<String> uncaughtAsync() async {
     await Future<void>.delayed(const Duration(milliseconds: 10));
