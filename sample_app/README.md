@@ -6,7 +6,7 @@ shows the package API; this one is a test bench with 43 scenarios.
 
 | Group | Scenarios |
 |---|---|
-| Log lines | each level (PIN/password in the text), 25 repeats + 8 near-duplicates, raw `debugPrint` with a token |
+| Log lines | each level (PIN/password in the text), 25 repeats (folded to ×25) and 8 numbered lines, raw `debugPrint` with a token |
 | Dart errors | null check, bad cast from JSON, `RangeError`, `.first` on empty list, failed `assert`, caught `FormatException`, uncaught async `TimeoutException`, `LateInitializationError`, stream error with no `onError`, 200-frame recursion, `setState()` after `dispose()`, unknown named route |
 | Build and layout | null in `build` (red screen), `Row` overflow, `ListView` in a `Column` (unbounded height), `TextField` in a `Row` (unbounded width), `Expanded` in a `Stack`, the same build error on every frame, `Image.network` that cannot load |
 | API calls (Dio) | 200 GET, 200 POST sign-in, 401, 404, 500, receive timeout, malformed JSON, connection refused, unknown host; and "200 for everything" bodies: `success: true`, `success: false`, `response_type: "WARNING"`, `type: 2`, a 400 with `response_type: "ERROR"` |
@@ -18,7 +18,7 @@ The two "cannot connect" cases use `127.0.0.1:9` and `api.sample.invalid`.
 The native side of the channel is `android/app/src/main/kotlin/.../MainActivity.kt`.
 
 In tidy mode, `lib/api/response_rules.dart` tells tidy_log how this backend
-reports the real result, so `POST /api/wallet/pay  200 ✗ Insufficient balance`
+reports the real result, so `POST /api/wallet/pay  200 ✕ Insufficient balance`
 is red even though the status is 200. See "Response rules" in the root README.
 
 ## Modes
