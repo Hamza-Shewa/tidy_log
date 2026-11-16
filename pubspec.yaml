@@ -1,0 +1,24 @@
+name: tidy_log
+description: Styled, readable debug console logs for Flutter. Errors lead with where they happened, stack traces are trimmed to your own frames, and Dio calls get one compact line.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
+
+dependencies:
+  dio: ^5.9.0
+  flutter:
+    sdk: flutter
+  stack_trace: ^1.12.1
+  yaml: ^3.1.3
+
+dev_dependencies:
+  fake_async: ^1.3.3
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+executables:
+  tidy_flutter:
