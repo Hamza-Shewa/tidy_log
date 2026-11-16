@@ -5,8 +5,8 @@ import 'package:tidy_log/src/core.dart';
 
 /// Output of a whole run (lines added, then the end of the run), without
 /// the "app started" divider.
-List<String> run(List<String> lines) {
-  final pipeline = ConsolePipeline(TidyConfig(projectPackages: const ['app']));
+List<String> run(List<String> lines, {TidyConfig? config}) {
+  final pipeline = ConsolePipeline(config ?? TidyConfig(projectPackages: const ['app']));
   const renderer = Renderer(color: false, includeSource: true);
   final entries = [for (final l in lines) ...pipeline.add(l), ...pipeline.finish()];
   return [for (final e in entries) ...renderer.render(e)].where((l) => !l.startsWith('────────')).toList();
@@ -244,5 +244,65 @@ void main() {
     ];
     expect(actual, expected);
     expect(actual.length, lessThan(fixture.length ~/ 4), reason: 'these boxes are mostly noise');
+  });
+  group('http_rules from tidy_log.yaml', () {
+    final config = TidyConfig.fromYaml('''
+http_rules:
+  - field: type
+    values: {1: success}
+    otherwise: error
+    message: messages
+''');
+
+    List<String> balance(String type, [String messages = '[]']) => run([
+      ...box('Request ║ GET ', 'http://h:1/api/Inquiries/Balance?accountType=0'),
+      ...box('Response ║ GET ║ Status: 200 OK', 'http://h:1/api/Inquiries/Balance?accountType=0', [
+        '╔ Body',
+        '║',
+        '║    {',
+        if (type.isNotEmpty) '║         type: $type,',
+        '║         messages: $messages',
+        '║    }',
+        '║',
+        _rule,
+      ]),
+    ], config: config);
+
+    test('a failed envelope on a 200 is an error, with its message and the rule', () {
+      final out = balance('3', '["حدثت مشكلة في الخادم"]');
+      expect(out.first, startsWith('GET    /api/Inquiries/Balance?accountType=0'));
+      expect(out.first.substring(7 + 46 + 2, 7 + 46 + 2 + 5), '200 ✕');
+      expect(out, containsAllInOrder(['    ✕ حدثت مشكلة في الخادم', '    rule  type = 3 → error']));
+    });
+
+    test('a successful envelope, or one without the field, keeps a plain 200', () {
+      expect(balance('1').first, head('GET', '/api/Inquiries/Balance?accountType=0', '200', 'h:1'));
+      expect(balance('').first, head('GET', '/api/Inquiries/Balance?accountType=0', '200', 'h:1'));
+    });
+
+    test('without http_rules nothing is judged', () {
+      final out = run([
+        ...box('Request ║ GET ', 'http://h:1/a'),
+        ...box('Response ║ GET ║ Status: 200 OK', 'http://h:1/a', [
+          '╔ Body',
+          '║    {',
+          '║         type: 3',
+          '║    }',
+          _rule,
+        ]),
+      ]);
+      expect(out.first, head('GET', '/a', '200', 'h:1'));
+    });
+
+    test('a mistyped outcome or a rule without a field is reported, not ignored', () {
+      expect(
+        () => TidyConfig.fromYaml('http_rules:\n  - field: type\n    values: {1: sucess}\n'),
+        throwsA(isA<FormatException>().having((e) => e.message, 'message', contains('sucess'))),
+      );
+      expect(
+        () => TidyConfig.fromYaml('http_rules:\n  - values: {1: success}\n'),
+        throwsA(isA<FormatException>().having((e) => e.message, 'message', contains('field'))),
+      );
+    });
   });
 }

@@ -30,7 +30,7 @@ final class ConsolePipeline {
     : _filter = NoiseFilter(config),
       _redactor = Redactor(config.redactKeys),
       _restyler = Restyler(config),
-      _http = PrettyHttpPairer(redact: Redactor(config.redactKeys).apply);
+      _http = PrettyHttpPairer(redact: Redactor(config.redactKeys).apply, rules: config.httpRules);
 
   final TidyConfig config;
   final NoiseFilter _filter;

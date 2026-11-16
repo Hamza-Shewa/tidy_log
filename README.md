@@ -190,7 +190,14 @@ rules:                   # label your own Dart print lines
   - match: '^unhandled element'
     label: SVG
     tone: warning        # plain dim secondary error warning accent success
+http_rules:              # judge pretty_dio_logger boxes by their body, like ResponseRule.field in the app
+  - field: type          # body path; dotted for nested fields (meta.status, errors.0.code)
+    values: {1: success} # success | info | warning | error
+    otherwise: error     # any other value present; leave it out to keep the status colour
+    message: messages    # text shown as the reason (a string, or a list's first item)
 ```
+
+`http_rules` are for HTTP calls another package logs with a pretty_dio_logger style interceptor, which the runner folds into one line; the first rule with a verdict wins. A mistyped outcome stops the run with a message naming the rule, so a typo never turns a rule off quietly. For your own Dio clients, `TidyDioInterceptor(rules: …)` does the same in the app.
 
 The `quiet` preset hides these tags: WindowOnBackDispatcher, InsetsController, ImeTracker, InputConnectionAdaptor, Surface, HWUI, nativeloader, `cr_*`, CompatChangeReporter, Badge, NexusLauncherBadge, ApplicationLoaders, ResourcesManager, `VRI[*`, ViewRootImpl, WindowExtensionsImpl, WindowLayoutComponentImpl, UiContextUtils, AudioSystem, libc, DefaultDispatch, InteractionJankMonitor, FlutterActivityAndFragmentDelegate, ProfileInstaller and DesktopExperienceFlags. It also hides `avc: denied/granted` lines and these start-up messages: `Beginning load of flutter`, `flutter (null) was loaded normally!`, `Width is zero` and ART's `… GC freed …`. `Skipped N frames!` stays, because it is a real performance signal.
 

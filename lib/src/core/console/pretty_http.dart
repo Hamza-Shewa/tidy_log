@@ -1,3 +1,4 @@
+import '../body_rule.dart';
 import '../entry.dart';
 import '../http_entry.dart';
 import '../level.dart';
@@ -171,10 +172,13 @@ enum PrettyKind { request, response, error }
 final class PrettyHttpPairer {
   /// [redact] masks secrets in bodies before they are shortened for the
   /// console, so a long token cannot push the rest of a body out of view.
-  PrettyHttpPairer({String Function(String)? redact}) : _redact = redact ?? _same;
+  /// [rules] judge each response by its body (`http_rules` in
+  /// `tidy_log.yaml`); the first verdict wins.
+  PrettyHttpPairer({String Function(String)? redact, this.rules = const []}) : _redact = redact ?? _same;
 
   static String _same(String text) => text;
   final String Function(String) _redact;
+  final List<FieldRule> rules;
   final _open = <String, List<PrettyBox>>{};
 
   List<Entry> add(PrettyBox box) {
@@ -184,11 +188,15 @@ final class PrettyHttpPairer {
         return const [];
       case PrettyKind.response || PrettyKind.error when box.url != null:
         final request = _take(box.url!);
+        final verdict = _judge(box.body);
         return [
           httpEntry(
             method: request?.method ?? box.method ?? 'HTTP',
             url: box.url!,
             status: box.status,
+            outcome: verdict?.outcome,
+            verdict: verdict?.message,
+            rule: verdict?.rule,
             bodyLines: request?.body ?? const [],
             responseLines: box.body,
             redact: _redact,
@@ -231,6 +239,15 @@ final class PrettyHttpPairer {
     ];
     _open.clear();
     return entries;
+  }
+
+  FieldVerdict? _judge(List<String> body) {
+    if (rules.isEmpty || body.isEmpty) return null;
+    final parsed = bodyFromLines(body);
+    for (final rule in rules) {
+      if (rule.decide(parsed) case final verdict?) return verdict;
+    }
+    return null;
   }
 
   PrettyBox? _take(String url) {

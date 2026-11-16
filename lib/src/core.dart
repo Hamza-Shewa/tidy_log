@@ -2,6 +2,7 @@
 /// logcat cleaner pipeline used by the `tidy_log` runner (`dart run tidy_log`).
 library;
 
+export 'core/body_rule.dart' show FieldRule, FieldVerdict, bodyFromLines, jsonBody, lookup, textAt;
 export 'core/console/config.dart' show LabelRule, Preset, TidyConfig, quietMessages, quietTags;
 export 'core/console/pipeline.dart' show ConsolePipeline;
 export 'core/console/redactor.dart' show Redactor;
