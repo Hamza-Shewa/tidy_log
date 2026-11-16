@@ -10,6 +10,7 @@ Readable Flutter debug logs for Android, in VS Code, Android Studio, IntelliJ or
   - Native Java stack traces fold to the exception, the first non-SDK frame and the `caused by` line.
   - Chatty Android tags are hidden by default.
 - Dio calls become one line each (`POST /api/Auth/Signin  401  1,003 ms`), coloured by status, with PINs, passwords and tokens masked. Response rules can flag a 200 whose body says it failed (`200 ✕ Insufficient balance`).
+- Packages that log HTTP with pretty_dio_logger-style boxes (`╔╣ Request ║ GET`) need no change: the runner pairs each request with its response and prints the same one line, without the header and timeout rows. Anything shaped like a JWT is masked wherever it appears, even when a logger prints it without its key.
 - Each new app process gets a divider, and so does each hot restart.
 - Every run also writes a **clean copy** to `.dart_tool/tidy_log/last_run.log`, in plain text with no colours and no tags, ready to paste.
 

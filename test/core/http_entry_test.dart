@@ -79,6 +79,13 @@ void main() {
     });
   });
 
+  test('the path and query are shown decoded, not percent-encoded', () {
+    final line = _plain
+        .render(httpEntry(method: 'GET', url: 'http://h:1/api/caf%C3%A9?q=%3Credacted%3E&n=a%20b', status: 200))
+        .first;
+    expect(line, startsWith('GET /api/café?q=<redacted>&n=a b  h:1  200'));
+  });
+
   test('httpOutcome follows the status class, and a transport error wins', () {
     expect(httpOutcome(status: 201), HttpOutcome.success);
     expect(httpOutcome(status: 302), HttpOutcome.info);

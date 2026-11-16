@@ -41,7 +41,7 @@ Entry httpEntry({
 }) {
   final uri = Uri.tryParse(url);
   final hasHost = uri != null && uri.host.isNotEmpty;
-  final path = !hasHost ? url : (uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
+  final path = !hasHost ? url : _decoded(uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
   final host = !hasHost ? '' : '${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
   final meta = [if (durationMs != null) '${thousands(durationMs)} ms', ?time].join(' · ');
   final effective = outcome ?? httpOutcome(status: status, error: error);
@@ -94,3 +94,13 @@ String cap(String text, [int max = 300]) => text.length <= max ? text : '${text.
 
 /// `74991` → `74,991`.
 String thousands(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+
+/// Percent-decoded for reading (`%3Credacted%3E` → `<redacted>`); left as is
+/// when it is not valid percent-encoding.
+String _decoded(String text) {
+  try {
+    return Uri.decodeFull(text);
+  } on ArgumentError {
+    return text;
+  }
+}

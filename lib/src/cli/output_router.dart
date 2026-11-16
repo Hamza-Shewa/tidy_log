@@ -35,6 +35,9 @@ final class OutputRouter {
 
   void flush() => _write(pipeline.flush());
 
+  /// The end of the run: also reports HTTP requests that never got an answer.
+  void finish() => _write(pipeline.finish());
+
   void _write(List<Entry> entries) {
     for (final entry in entries) {
       _styledRenderer.render(entry).forEach(styled);

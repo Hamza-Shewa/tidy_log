@@ -156,7 +156,7 @@ Future<int> _rewrite(TidyConfig config, {required bool plain}) async {
   await for (final line in stdin.transform(const Utf8Decoder(allowMalformed: true)).transform(const LineSplitter())) {
     router.add(line);
   }
-  router.flush();
+  router.finish();
   await stdout.flush();
   return 0;
 }
@@ -221,7 +221,7 @@ Future<int> _forward(Process process, TidyConfig config, {void Function()? onSig
   final code = await process.exitCode;
   await Future.wait([out, err]);
   idle?.cancel();
-  router.flush();
+  router.finish();
   for (final f in forwarders) {
     unawaited(f.cancel());
   }

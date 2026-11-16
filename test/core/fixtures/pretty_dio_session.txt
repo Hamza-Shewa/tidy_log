@@ -1,0 +1,176 @@
+I/flutter (14271): from /login Pushed route: /loginSelectAccountPage
+D/HWUI    (14271): --- Failed to create image decoder with message 'unimplemented'
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Request ║ GET 
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Auth/SoftOtp?softToken=%3Credacted%3E
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Query Parameters 
+I/flutter (14271): ╟ softToken: <redacted>
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Headers 
+I/flutter (14271): ╟ content-type: application/json
+I/flutter (14271): ╟ accept-language: ar-LY
+I/flutter (14271): ╟ authorization: <redacted>
+I/flutter (14271): ╟ contentType: application/json
+I/flutter (14271): ╟ responseType: ResponseType.json
+I/flutter (14271): ╟ followRedirects: true
+I/flutter (14271): ╟ connectTimeout: 0:01:30.000000
+I/flutter (14271): ╟ receiveTimeout: 0:01:30.000000
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+D/HWUI    (14271): --- Failed to create image decoder with message 'unimplemented'
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Response ║ GET ║ Status: 200 OK
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Auth/SoftOtp?softToken=%3Credacted%3E
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Body
+I/flutter (14271): ║
+I/flutter (14271): ║    {
+I/flutter (14271): ║         content: "111222",
+I/flutter (14271): ║         type: 1,
+I/flutter (14271): ║         messages: []
+I/flutter (14271): ║         traceId: "00000000-0000-0000-0000-000000000001"
+I/flutter (14271): ║    }
+I/flutter (14271): ║
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+D/HWUI    (14271): --- Failed to create image decoder with message 'unimplemented'
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Request ║ POST 
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Auth/Signin?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Headers 
+I/flutter (14271): ╟ content-type: application/json
+I/flutter (14271): ╟ accept-language: ar-LY
+I/flutter (14271): ╟ authorization: <redacted>
+I/flutter (14271): ╟ contentType: application/json
+I/flutter (14271): ╟ responseType: ResponseType.json
+I/flutter (14271): ╟ followRedirects: true
+I/flutter (14271): ╟ connectTimeout: 0:01:30.000000
+I/flutter (14271): ╟ receiveTimeout: 0:01:30.000000
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Body 
+I/flutter (14271): ╟ userName: 218900000000
+I/flutter (14271): ╟ pin: <redacted>
+I/flutter (14271): ╟ otp: <redacted>
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+D/HWUI    (14271): --- Failed to create image decoder with message 'unimplemented'
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Response ║ POST ║ Status: 200 OK
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Auth/Signin?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Body
+I/flutter (14271): ║
+I/flutter (14271): ║    {
+I/flutter (14271): ║         content: {
+I/flutter (14271): ║             validTo: "2032-07-30T15:40:59Z",
+I/flutter (14271): ║             refreshToken: "<redacted>",
+I/flutter (14271): ║             systemIdentity: "1001",
+I/flutter (14271): ║             creds: 17,
+I/flutter (14271): ║             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJJRCI6IjEwMDEiLC
+I/flutter (14271): ║             JBcHBJZCI6IjEwMDAwMSIsIlVJRCI6IjEwMDEiLCJDdXJyZW5jeVR5cGUiOiJMWUQiLCJQaG9uZU51bWJlciI6IjIxODkwMDAwMDAwMCIsIkF1dGhTdG
+I/flutter (14271): ║             F0ZSI6IjE3IiwiZXhwIjoxOTc0ODE0ODU5LCJpc3MiOiJleGFtcGxlLWRldiIsImF1ZCI6ImV4YW1wbGUtZGV2In0.c2lnbmF0dXJlLW5vdC1yZWFsLX
+I/flutter (14271): ║             Rlc3Qtb25seS0xMjM0NTY3ODkw"
+I/flutter (14271): ║        }
+I/flutter (14271): ║         type: 1,
+I/flutter (14271): ║         messages: []
+I/flutter (14271): ║         traceId: "00000000-0000-0000-0000-000000000002"
+I/flutter (14271): ║    }
+I/flutter (14271): ║
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+D/HWUI    (14271): --- Failed to create image decoder with message 'unimplemented'
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Request ║ GET 
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Auth/Accounts?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Headers 
+I/flutter (14271): ╟ content-type: application/json
+I/flutter (14271): ╟ accept-language: ar-LY
+I/flutter (14271): ╟ authorization: <redacted>
+I/flutter (14271): ╟ contentType: application/json
+I/flutter (14271): ╟ responseType: ResponseType.json
+I/flutter (14271): ╟ followRedirects: true
+I/flutter (14271): ╟ connectTimeout: 0:01:30.000000
+I/flutter (14271): ╟ receiveTimeout: 0:01:30.000000
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+D/HWUI    (14271): --- Failed to create image decoder with message 'unimplemented'
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Response ║ GET ║ Status: 200 OK
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Auth/Accounts?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Body
+I/flutter (14271): ║
+I/flutter (14271): ║    {
+I/flutter (14271): ║         content: [
+I/flutter (14271): ║            {
+I/flutter (14271): ║                 accId: 1,
+I/flutter (14271): ║                 nickName: "Test account",
+I/flutter (14271): ║                 currType: 1
+I/flutter (14271): ║            }
+I/flutter (14271): ║         ],
+I/flutter (14271): ║         type: 1,
+I/flutter (14271): ║         messages: []
+I/flutter (14271): ║    }
+I/flutter (14271): ║
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Request ║ POST 
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Transfer/Execute?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Headers 
+I/flutter (14271): ╟ content-type: application/json
+I/flutter (14271): ╟ accept-language: ar-LY
+I/flutter (14271): ╟ authorization: <redacted>
+I/flutter (14271): ╟ contentType: application/json
+I/flutter (14271): ╟ responseType: ResponseType.json
+I/flutter (14271): ╟ followRedirects: true
+I/flutter (14271): ╟ connectTimeout: 0:01:30.000000
+I/flutter (14271): ╟ receiveTimeout: 0:01:30.000000
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Body 
+I/flutter (14271): ╟ amount: 150.5
+I/flutter (14271): ╟ toAccount: 001200000000001
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): 
+I/flutter (14271): ╔╣ DioError ║ Status: 401 Unauthorized
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Transfer/Execute?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ DioExceptionType.badResponse
+I/flutter (14271): ║    {
+I/flutter (14271): ║         type: 2,
+I/flutter (14271): ║         messages: ["Session expired"]
+I/flutter (14271): ║    }
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): 
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Request ║ GET 
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Inbox/List?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Headers 
+I/flutter (14271): ╟ content-type: application/json
+I/flutter (14271): ╟ accept-language: ar-LY
+I/flutter (14271): ╟ authorization: <redacted>
+I/flutter (14271): ╟ contentType: application/json
+I/flutter (14271): ╟ responseType: ResponseType.json
+I/flutter (14271): ╟ followRedirects: true
+I/flutter (14271): ╟ connectTimeout: 0:01:30.000000
+I/flutter (14271): ╟ receiveTimeout: 0:01:30.000000
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): 
+I/flutter (14271): ╔╣ DioError ║ DioExceptionType.connectionError
+I/flutter (14271): ║  The connection errored: Connection refused This indicates an error which most likely cannot be solved by the library.
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): session refreshed, bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJJRCI6IjEwMDEiLCJBcHBJZCI6IjEwMDAwMSIsIlVJRCI6IjEwMDEiLCJDdXJyZW5jeVR5cGUiOiJMWUQiLCJQaG9uZU51bWJlciI6IjIxODkwMDAwMDAwMCIsIkF1dGhTdGF0ZSI6IjE3IiwiZXhwIjoxOTc0ODE0ODU5LCJpc3MiOiJleGFtcGxlLWRldiIsImF1ZCI6ImV4YW1wbGUtZGV2In0.c2lnbmF0dXJlLW5vdC1yZWFsLXRlc3Qtb25seS0xMjM0NTY3ODkw
+I/flutter (14271): 
+I/flutter (14271): ╔╣ Request ║ GET 
+I/flutter (14271): ║  http://10.0.2.2:4020/api/Cards/List?
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+I/flutter (14271): ╔ Headers 
+I/flutter (14271): ╟ content-type: application/json
+I/flutter (14271): ╟ accept-language: ar-LY
+I/flutter (14271): ╟ authorization: <redacted>
+I/flutter (14271): ╟ contentType: application/json
+I/flutter (14271): ╟ responseType: ResponseType.json
+I/flutter (14271): ╟ followRedirects: true
+I/flutter (14271): ╟ connectTimeout: 0:01:30.000000
+I/flutter (14271): ╟ receiveTimeout: 0:01:30.000000
+I/flutter (14271): ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
