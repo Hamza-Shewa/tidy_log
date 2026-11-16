@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -27,10 +28,11 @@ const _pubspec = 'name: my_app\ndev_dependencies:\n  tidy_log: ^0.1.0\n';
 const _launch =
     '{\n  // mine\n  "configurations": [\n    {"name": "dev", "type": "dart", "request": "launch"}\n  ]\n}\n';
 
-int run(Directory dir, List<String> args, StringBuffer out) {
-  final sink = _BufferSink(out);
-  return runSetup(args, project: dir, out: sink);
-}
+int run(Directory dir, List<String> args, StringBuffer out, [StringBuffer? err]) =>
+    runSetup(args, project: dir, out: _BufferSink(out), err: _BufferSink(err ?? StringBuffer()));
+
+/// Whether the owner may execute [path].
+bool ownerCanExecute(String path) => File(path).statSync().mode & 0x40 != 0;
 
 void main() {
   test('setup writes both launchers and a tidy twin, and prints the app snippet', () {
@@ -136,6 +138,131 @@ void main() {
     expect(out.toString(), contains('would create ${dir.path}/shim'));
     expect(Directory('${dir.path}/shim').existsSync(), isFalse);
     expect(run(dir, ['--sdk', '--sdk-dir'], StringBuffer()), 64);
+  });
+
+  test('an unparseable launch.json is left untouched, but the launchers are written for the manual config', () {
+    const broken = '{\n  "configurations": [\n    {"name": "dev", "type": "dart"\n';
+    final dir = project({'pubspec.yaml': _pubspec, '.vscode/launch.json': broken});
+    final err = StringBuffer();
+
+    expect(run(dir, [], StringBuffer(), err), 1);
+
+    final files = snapshot(dir);
+    expect(files['.vscode/launch.json'], broken);
+    expect(files['.vscode/tidy_flutter'], shellLauncher);
+    expect(files['.vscode/tidy_flutter.bat'], batchLauncher);
+    expect(err.toString(), startsWith('tidy_log setup: '));
+    expect(err.toString(), contains('left .vscode/launch.json untouched'));
+    expect(err.toString(), contains(r'"customTool": "${workspaceFolder}/.vscode/tidy_flutter"'));
+  });
+
+  test('a launch.json that only the JSON decoder rejects gives the friendly message, not a stack trace', () {
+    const badEscape = r'{"\q": 1, "configurations": []}';
+    final dir = project({'pubspec.yaml': _pubspec, '.vscode/launch.json': badEscape});
+    final err = StringBuffer();
+
+    expect(run(dir, [], StringBuffer(), err), 1);
+
+    expect(err.toString(), startsWith('tidy_log setup: '));
+    expect(err.toString(), contains('left .vscode/launch.json untouched'));
+    expect(snapshot(dir)['.vscode/launch.json'], badEscape);
+    expect(snapshot(dir)['.vscode/tidy_flutter'], shellLauncher);
+  });
+
+  test('a launch.json that is not UTF-8 gives the friendly message, not a stack trace', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+    final bytes = [...utf8.encode('{"configurations": [], "x": "'), 0xFF, ...utf8.encode('"}\n')];
+    final launch = File('${dir.path}/.vscode/launch.json')
+      ..parent.createSync()
+      ..writeAsBytesSync(bytes);
+    final err = StringBuffer();
+
+    expect(run(dir, [], StringBuffer(), err), 1);
+
+    expect(err.toString(), startsWith('tidy_log setup: '));
+    expect(err.toString(), contains('left .vscode/launch.json untouched'));
+    expect(launch.readAsBytesSync(), bytes);
+    expect(File('${dir.path}/.vscode/tidy_flutter').readAsStringSync(), shellLauncher);
+  });
+
+  test('a broken pubspec.yaml gives the friendly message, not a stack trace, and writes nothing', () {
+    final dir = project({'pubspec.yaml': 'name: [my_app\n'});
+    final err = StringBuffer();
+
+    expect(run(dir, [], StringBuffer(), err), 1);
+
+    expect(err.toString(), startsWith('tidy_log setup: '));
+    expect(err.toString(), contains('pubspec.yaml'));
+    expect(snapshot(dir).keys, ['pubspec.yaml']);
+  });
+
+  test('an edited launcher is kept on rerun and on --remove, with a note', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+    expect(run(dir, [], StringBuffer()), 0);
+    const edited = '$shellLauncher# team tweak\n';
+    File('${dir.path}/.vscode/tidy_flutter').writeAsStringSync(edited);
+
+    final rerun = StringBuffer();
+    expect(run(dir, [], rerun), 0);
+    expect(snapshot(dir)['.vscode/tidy_flutter'], edited);
+    expect(rerun.toString(), contains('kept .vscode/tidy_flutter (it differs from the template'));
+    expect(rerun.toString(), isNot(contains('kept .vscode/tidy_flutter.bat')));
+
+    final removal = StringBuffer();
+    expect(run(dir, ['--remove'], removal), 0);
+    final files = snapshot(dir);
+    expect(files['.vscode/tidy_flutter'], edited);
+    expect(files.containsKey('.vscode/tidy_flutter.bat'), isFalse, reason: 'the unedited launcher is removed');
+    expect(removal.toString(), contains('kept .vscode/tidy_flutter (it differs from the template'));
+  });
+
+  test('a launcher that lost its exec bit gets it back', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+    expect(run(dir, [], StringBuffer()), 0);
+    final launcher = '${dir.path}/.vscode/tidy_flutter';
+    Process.runSync('chmod', ['-x', launcher]);
+    expect(ownerCanExecute(launcher), isFalse);
+
+    final out = StringBuffer();
+    expect(run(dir, [], out), 0);
+
+    expect(ownerCanExecute(launcher), isTrue);
+    expect(out.toString(), contains('make executable .vscode/tidy_flutter'));
+    expect(out.toString(), isNot(contains('Already set up')));
+  }, skip: Platform.isWindows ? 'no exec bit on Windows' : false);
+
+  test('a UTF-8 BOM at the start of launch.json is kept', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+    final launch = File('${dir.path}/.vscode/launch.json')
+      ..parent.createSync()
+      ..writeAsBytesSync([0xEF, 0xBB, 0xBF, ...utf8.encode(_launch)]);
+
+    expect(run(dir, [], StringBuffer()), 0);
+
+    final bytes = launch.readAsBytesSync();
+    expect(bytes.take(3), [0xEF, 0xBB, 0xBF]);
+    expect(utf8.decode(bytes.skip(3).toList()), startsWith('{\n  // mine'), reason: 'exactly one BOM');
+    expect(utf8.decode(bytes.skip(3).toList()), contains('"name": "dev (tidy logs)"'));
+  });
+
+  test('setup then --remove on a project without .vscode leaves no .vscode', () {
+    final dir = project({'pubspec.yaml': _pubspec});
+
+    expect(run(dir, [], StringBuffer()), 0);
+    expect(run(dir, ['--remove'], StringBuffer()), 0);
+
+    expect(snapshot(dir).keys, ['pubspec.yaml']);
+    expect(Directory('${dir.path}/.vscode').existsSync(), isFalse);
+  });
+
+  test('setup then --remove keeps a .vscode folder that has other files', () {
+    final dir = project({'pubspec.yaml': _pubspec, '.vscode/settings.json': '{}\n'});
+    final before = snapshot(dir);
+
+    expect(run(dir, [], StringBuffer()), 0);
+    expect(run(dir, ['--remove'], StringBuffer()), 0);
+
+    expect(snapshot(dir), before);
   });
 
   test('an unknown option is a usage error', () {

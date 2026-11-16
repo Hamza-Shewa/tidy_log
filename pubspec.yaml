@@ -29,4 +29,3 @@ dev_dependencies:
 
 executables:
   tidy_log:
-  setup:
