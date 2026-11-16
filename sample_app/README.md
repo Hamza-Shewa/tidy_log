@@ -18,8 +18,15 @@ The two "cannot connect" cases use `127.0.0.1:9` and `api.sample.invalid`.
 The native side of the channel is `android/app/src/main/kotlin/.../MainActivity.kt`.
 
 In tidy mode, `lib/api/response_rules.dart` tells tidy_log how this backend
-reports the real result, so `POST /api/wallet/pay  200 ✕ Insufficient balance`
-is red even though the status is 200. See "Response rules" in the root README.
+reports the real result, so this call is red even though the status is 200:
+
+```text
+POST   /api/wallet/pay                                 200 ✕    12 ms  21:48:42  127.0.0.1:45887
+    ✕ Insufficient balance
+    rule  success = false → error
+```
+
+See "Response rules" in the root README.
 
 ## Modes
 

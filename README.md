@@ -20,7 +20,7 @@ Use `flutter pub add tidy_log` (not `dev:`) if your app code will call `TidyLog`
 | VS Code | `dart run tidy_log:setup` | Run and Debug → pick a "(tidy logs)" config → F5 |
 | Android Studio / IntelliJ | `dart run tidy_log:setup --sdk` | Settings → Languages & Frameworks → Flutter → SDK path = the folder it prints, then Run as usual |
 
-Works on macOS and Linux. The Windows launchers are included but untested. The native cleanup is for Android; on iOS the in-app logger still works.
+The tests run in CI on Linux, macOS and Windows. On Windows, the Android Studio shim is new in 0.2.1 (see Limits). The native cleanup is for Android; on iOS the in-app logger still works.
 
 **3. HTTP calls (Dio)**
 
@@ -52,8 +52,12 @@ That's all you need. Everything below is detail.
   - Near-duplicates fold into `↳ +6 similar`.
   - Native Java stack traces fold to the exception, the first non-SDK frame and the `caused by` line.
   - Chatty Android tags are hidden by default.
-- Each Dio call gets one aligned line (method, path, status, duration, time, host in fixed columns), coloured by status, with its body and response underneath one field per line. PINs, OTPs, tokens (also `softToken`, `refreshToken` and URL query values), passwords and JWTs are masked. Response rules can flag a 200 whose body says it failed (`200 ✕`, with the reason on the next line).
+- Each Dio call gets one aligned line (method, path, status, duration, time, host in fixed columns), coloured by status, with its body and response underneath one field per line. Secrets are masked (see below). Response rules can flag a 200 whose body says it failed (`200 ✕`, with the reason on the next line).
 - Packages that log HTTP with pretty_dio_logger-style boxes (`╔╣ Request ║ GET`) need no change: the runner pairs each request with its response and prints the same one line, without the header and timeout rows. Anything shaped like a JWT is masked wherever it appears, even when a logger prints it without its key.
+- Secrets are masked. In the app, `TidyLog` and `TidyDioInterceptor` mask what they print. The runner also masks native lines, the Flutter tool's stderr, and lines that other loggers print in their own colours, in the console and in the clean copy.
+  - Keys masked by default (`redact_keys` / `redactKeys` change the list): `pin`, `password`, `passcode`, `otp`, `token`, `secret`, `cvv`, `authorization`, `pincode`, `otpcode`, `cvv2`, `cvc`, `apikey`, `cookie`, `setcookie`, `sessionid`, `privatekey`, `accesskey`. Case, `_` and `-` are ignored, and a key matches when it ends with one of these (`softToken`, `walletPin`, `X-Api-Key`), so `pinCount` and `tokenExpiry` are left alone.
+  - The whole value is masked: a quoted value up to its closing quote, an unquoted one to the end of the field, a list as a whole, and in a body everything nested under a sensitive key. An `Authorization` value is masked whole, whether it is `Bearer`, `Basic`, `Token` or `Digest`.
+  - URL query values are masked before the URL is percent-decoded. Keys are also found in escaped JSON (`\"password\"`) and in form keys (`user[password]`).
 - Each new app process gets a divider, and so does each hot restart.
 - Every run also writes a **clean copy** to `.dart_tool/tidy_log/last_run.log`, in plain text with no colours and no tags, ready to paste.
 
@@ -73,7 +77,7 @@ ERR Error refreshing session: unvalid api sign .....en-US
     ┊ package:core_kit/…/network_service_impl.dart:97:14  NetworkServiceImpl.requestService
 ```
 
-**Before and after:** the same demo session is 104 lines with `flutter run` and 22 with tidy_log. Both logs are in full on [the example page](example/README.md) (the **Example** tab on pub.dev).
+**Before and after:** the same demo session is 104 lines with `flutter run` and 24 with tidy_log. Both logs are in full on [the example page](example/README.md) (the **Example** tab on pub.dev).
 
 ## Setup in detail
 
@@ -84,7 +88,7 @@ ERR Error refreshing session: unvalid api sign .....en-US
 ### What `dart run tidy_log:setup` does (VS Code)
 
 - It writes `.vscode/tidy_flutter` and `.vscode/tidy_flutter.bat`. These are small launchers that start `dart run tidy_log` with the first Flutter SDK they find: `FLUTTER_ROOT` (VS Code sets it to the SDK the Dart extension uses), then `.fvm/flutter_sdk` next to `.vscode` (fvm), then `flutter` on `PATH`. Until `flutter pub get` has run, they fall back to plain flutter, so a fresh clone always launches.
-- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, or creates the file. Setup only adds text after your last config, so your own configs and comments stay as they are.
+- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, except test configs, or creates the file. Setup only adds text after your last config, so your own configs and comments stay as they are.
 - It prints an optional `main.dart` snippet that uses your app's package name.
 
 Commit the three files so your team gets them. `--dry-run` shows the changes first, and `--remove` takes out only what setup added.
@@ -137,7 +141,7 @@ final dio = Dio()..interceptors.add(TidyDioInterceptor()); // one line per HTTP 
 
 **Order matters:** call it before Sentry's init. Crash reporters keep the `FlutterError.onError` handler they find and call it after capturing an error. If the reporter is set up first, it keeps Flutter's box printer instead. The hooks then leave the reporter alone and print a one-line hint.
 
-The hooks print errors themselves rather than through `FlutterError.presentError`, because in debug runs the widget inspector replaces `presentError` once the binding starts. To keep the IDE's structured errors instead, use `installErrorHooks(keepStructuredErrors: true)`.
+The hooks print errors themselves rather than through `FlutterError.presentError`, because in debug runs the widget inspector replaces `presentError` once the binding starts. To keep the IDE's structured errors instead, use `installErrorHooks(keepStructuredErrors: true)`. Flutter errors then go through Flutter's presenter, which the widget inspector takes over in debug runs, so they are not tidied: no location-first line and no folding of follow-on errors. Uncaught async errors are still tidied.
 
 Some errors get a short description instead of their `toString()`:
 
@@ -185,13 +189,13 @@ TidyLog.configure(httpRules: [ // or TidyDioInterceptor(rules: [...]) for one cl
 ```
 
 ```
-POST   /api/wallet/pay                                 200 ✕     12 ms  21:48:42  127.0.0.1:45887
+POST   /api/wallet/pay                                 200 ✕    12 ms  21:48:42  127.0.0.1:45887
     ✕ Insufficient balance
     rule  success = false → error
-GET    /api/session                                    200 !      4 ms  21:48:42  127.0.0.1:45887
+GET    /api/session                                    200 !     4 ms  21:48:42  127.0.0.1:45887
     ! Session expires in 2 minutes
     rule  response_type = "WARNING" → warning
-POST   /api/Auth/OpenSession                           200 ✕  1,010 ms  15:22:58  10.0.2.2:4013
+POST   /api/Auth/OpenSession                           200 ✕ 1,010 ms  15:22:58  10.0.2.2:4013
     ✕ unvalid api sign
     rule  type = 2 → error
 ```
@@ -201,7 +205,7 @@ POST   /api/Auth/OpenSession                           200 ✕  1,010 ms  15:22:
 - `message:` points at a string, or at a list whose first item is used.
 - A value missing from the map gets `otherwise:`, or no verdict at all (the status colour stays).
 - Rules also run on error responses, so a 400 can be just a warning. The first rule with a verdict wins.
-- Rules only change the log line (colour, level, message). They never change what Dio does. A rule that throws is reported once as a `WRN`, and the call is still logged.
+- Rules only change the log line (colour, level, message). They never change what Dio does. A rule that throws is reported once per rule as a `WRN`, and the call is still logged.
 
 ## Configuration: `tidy_log.yaml` in the app root
 
@@ -214,7 +218,7 @@ hide_tags: [FlutterGeolocator]
 show_tags: [ImeTracker]  # wins over the preset and hide_tags
 hide_messages: ['^Width is zero']
 min_native_level: debug  # verbose | debug | info | warning | error
-redact_keys: [pin, password, passcode, otp, token, secret, cvv, authorization]
+redact_keys: [pin, password, passcode, otp, token, secret, cvv, authorization, pincode, otpcode, cvv2, cvc, apikey, cookie, setcookie, sessionid, privatekey, accesskey]  # the defaults; your list replaces them
 max_width: 160           # widest console line when the output is not a terminal (a terminal's own width is used); never applies to the clean copy
 color: true              # or set NO_COLOR=1
 rules:                   # label your own Dart print lines
@@ -246,7 +250,9 @@ If you can't use the runner, the package still works on its own. To hide native 
 ## Limits
 
 - Android only for the native part. iOS has no logcat prefixes, but the package still works there.
-- The Windows launchers (`.bat`) and the shim on Windows are untested.
+- The error hooks act only in debug builds. In profile and release builds, and after `TidyLog.configure(enabled: false)`, `installErrorHooks()` does nothing and Flutter's own error handling stays.
+- VS Code reads `.vscode/launch.json` only at the workspace root, and setup writes `.vscode` next to `pubspec.yaml`. Open the app's own folder in VS Code and run setup there. If the app is in a subfolder of the folder you opened, VS Code does not see its "(tidy logs)" configs.
+- On Windows, `setup --sdk` links the SDK's folders as directory junctions, so it needs neither Developer Mode nor an administrator shell. The shim on Windows is new in 0.2.1 and has had less use than on macOS and Linux.
 - The shim takes the first argument that is not a flag as the command, so a flag with a value placed before the command (`flutter -d emu run`) is not recognised, and that run gets plain output. IDEs pass the device after `run`.
 - Repeat counts and open blocks are held back until the next different line, or until the output has been quiet for 200 ms.
 - Dart-Code links paths in the console. `lib/…` paths open from the workspace root, and `package:` paths are resolved by the debug adapter.

@@ -9,7 +9,7 @@ This app is a small demo with five buttons:
 
 Below is the same session on an Android emulator, with the same taps (the tap-handler error twice), run both ways. The `flutter run` banner (build lines and key commands) is left out of both.
 
-## After: `dart run tidy_log run` (22 lines)
+## After: `dart run tidy_log run` (24 lines)
 
 Shown without colours. In the console, errors are red, warnings yellow, and tags and hidden-frame lines dim.
 
@@ -34,8 +34,10 @@ ERR Bad state: No account selected                                      · throw
 ERR TimeoutException: Session refresh took too long                     · uncaught
     at lib/main.dart:85:57  _DemoPageState._throwAsync.<fn>
     ┊ … 5 frames hidden
-POST /api/Auth/Signin  127.0.0.1:9  ERR connection refused  26 ms · 08:39:22
-    body  {userId: 7, pin: ••••••••}
+POST   /api/Auth/Signin                                ERR      26 ms  08:39:22  127.0.0.1:9
+    ✕ connection refused
+    body  userId: 7
+          pin: ••••••••
 ```
 
 ## Before: `flutter run` (104 lines)
