@@ -22,7 +22,13 @@ Map<String, Object?> defaultTidyConfig() => {
 
 /// What [addTidyTwins] or [removeTidyTwins] did.
 final class LaunchEdit {
-  const LaunchEdit(this.text, {this.added = const [], this.removed = const [], this.skipped = const []});
+  const LaunchEdit(
+    this.text, {
+    this.added = const [],
+    this.removed = const [],
+    this.skipped = const [],
+    this.leftEmpty = false,
+  });
 
   /// The new file content (unchanged when nothing was added or removed).
   final String text;
@@ -33,6 +39,10 @@ final class LaunchEdit {
   final List<String> skipped;
 
   bool get changed => added.isNotEmpty || removed.isNotEmpty;
+
+  /// After a removal: the file is back to the empty file setup creates from
+  /// scratch (no other configs, no comments), so it can be deleted.
+  final bool leftEmpty;
 }
 
 /// Thrown when launch.json cannot be edited safely.
@@ -50,6 +60,14 @@ final class LaunchJsonException implements Exception {
 /// formatting elsewhere in the file stay byte for byte. Running it again
 /// adds nothing.
 LaunchEdit addTidyTwins(String? source) {
+  try {
+    return _addTidyTwins(source);
+  } on FormatException catch (e) {
+    throw LaunchJsonException('launch.json is not valid JSON: ${e.message}');
+  }
+}
+
+LaunchEdit _addTidyTwins(String? source) {
   if (source == null || source.trim().isEmpty) {
     final config = defaultTidyConfig();
     final text = const JsonEncoder.withIndent('  ').convert({
@@ -88,6 +106,14 @@ LaunchEdit addTidyTwins(String? source) {
 /// Removes every config that [addTidyTwins] would have added (any config
 /// whose `customTool` is the tidy launcher). Other text is left as it is.
 LaunchEdit removeTidyTwins(String source) {
+  try {
+    return _removeTidyTwins(source);
+  } on FormatException catch (e) {
+    throw LaunchJsonException('launch.json is not valid JSON: ${e.message}');
+  }
+}
+
+LaunchEdit _removeTidyTwins(String source) {
   var text = source;
   final removed = <String>[];
   while (true) {
@@ -96,18 +122,64 @@ LaunchEdit removeTidyTwins(String source) {
     if (index < 0) break;
     final element = array.elements[index];
     removed.add('${_decode(text.substring(element.start, element.end))['name']}');
-    final (from, to) = index > 0
-        ? (array.elements[index - 1].end, element.end)
-        : (element.start, array.elements.length > 1 ? array.elements[1].start : element.commaEnd);
-    text = text.replaceRange(from, to, '');
+    text = _removeElement(text, array.elements, index);
   }
-  return LaunchEdit(text, removed: removed);
+  return LaunchEdit(text, removed: removed, leftEmpty: removed.isNotEmpty && _isEmptyDefault(text));
 }
 
-/// Whether [config] runs through the launcher that setup writes. Configs
-/// pointing anywhere else (for example a hand-made `build/tidy_flutter`)
+/// Removes element [index] and only what belongs to it: its own comma, and
+/// its line when nothing else is on that line. Comments between elements
+/// stay. When the element has no comma of its own (it was last), the comma
+/// that separated it from the element before goes instead.
+String _removeElement(String text, List<_Element> elements, int index) {
+  final element = elements[index];
+  final ownComma = element.commaEnd > element.end;
+  final lineStart = text.lastIndexOf('\n', element.start - 1) + 1;
+  final aloneOnLine = text.substring(lineStart, element.start).trim().isEmpty;
+
+  var from = aloneOnLine ? lineStart : element.start;
+  var to = ownComma ? element.commaEnd : element.end;
+  if (aloneOnLine) {
+    var j = to;
+    while (j < text.length && (text[j] == ' ' || text[j] == '\t')) {
+      j++;
+    }
+    if (text.startsWith('\r\n', j)) {
+      to = j + 2;
+    } else if (j < text.length && text[j] == '\n') {
+      to = j + 1;
+    } else if (j >= text.length) {
+      to = j;
+    } else {
+      from = element.start; // something follows on the same line: keep the line
+    }
+  }
+  var result = text.replaceRange(from, to, '');
+  if (!ownComma && index > 0) {
+    final previous = elements[index - 1];
+    if (previous.commaEnd > previous.end) result = result.replaceRange(previous.commaEnd - 1, previous.commaEnd, '');
+  }
+  return result;
+}
+
+/// Whether [text] is just `{"version": "0.2.0", "configurations": []}`
+/// with no comments: what setup would have created from scratch.
+bool _isEmptyDefault(String text) {
+  final stripped = stripJsonc(text);
+  if (stripped.replaceAll(RegExp(r'\s'), '') != text.replaceAll(RegExp(r'\s'), '')) return false; // has comments
+  final decoded = jsonDecode(stripped);
+  return decoded is Map &&
+      decoded.length == 2 &&
+      decoded['version'] == '0.2.0' &&
+      decoded['configurations'] is List &&
+      (decoded['configurations'] as List).isEmpty;
+}
+
+/// Whether [config] runs through the launcher that setup writes: its
+/// `customTool` is exactly `${workspaceFolder}/.vscode/tidy_flutter`. Configs
+/// pointing anywhere else (a hand-made `build/tidy_flutter`, a renamed copy)
 /// are not ours and are never removed.
-bool isTidyConfig(Map<String, Object?> config) => '${config['customTool'] ?? ''}'.contains(launcherPath);
+bool isTidyConfig(Map<String, Object?> config) => config['customTool'] == tidyToolFields['customTool'];
 
 Map<String, Object?> _twin(Map<String, Object?> config) {
   final windows = config['windows'];
@@ -120,22 +192,27 @@ Map<String, Object?> _twin(Map<String, Object?> config) {
 }
 
 String _insert(String source, _ArrayInfo array, List<Map<String, Object?>> twins) {
+  final nl = source.contains('\r\n') ? '\r\n' : '\n';
   final closeIndent = _indentBefore(source, array.close) ?? '  ';
+  final unit = closeIndent.contains('\t') ? '\t' : '  ';
   final elementIndent = array.elements.isEmpty
-      ? '$closeIndent  '
-      : (_indentBefore(source, array.elements.first.start) ?? '$closeIndent  ');
-  final step = elementIndent.length > closeIndent.length ? ' ' * (elementIndent.length - closeIndent.length) : '  ';
+      ? '$closeIndent$unit'
+      : (_indentBefore(source, array.elements.first.start) ?? '$closeIndent$unit');
+  // The file's own indent step (tabs or n spaces), so twins look like the rest.
+  final step = elementIndent.length > closeIndent.length && elementIndent.startsWith(closeIndent)
+      ? elementIndent.substring(closeIndent.length)
+      : unit;
   final encoder = JsonEncoder.withIndent(step);
-  final blocks = [for (final t in twins) encoder.convert(t).replaceAll('\n', '\n$elementIndent')];
+  final blocks = [for (final t in twins) encoder.convert(t).replaceAll('\n', '$nl$elementIndent')];
 
   if (array.elements.isEmpty) {
-    final text = '\n$elementIndent${blocks.join(',\n$elementIndent')}\n$closeIndent';
+    final text = '$nl$elementIndent${blocks.join(',$nl$elementIndent')}$nl$closeIndent';
     return source.replaceRange(array.open + 1, array.open + 1, text);
   }
   final last = array.elements.last;
   final at = array.trailingComma ? last.commaEnd : last.end;
   final text =
-      '${array.trailingComma ? '' : ','}\n$elementIndent${blocks.join(',\n$elementIndent')}${array.trailingComma ? ',' : ''}';
+      '${array.trailingComma ? '' : ','}$nl$elementIndent${blocks.join(',$nl$elementIndent')}${array.trailingComma ? ',' : ''}';
   return source.replaceRange(at, at, text);
 }
 
@@ -143,7 +220,7 @@ String _insert(String source, _ArrayInfo array, List<Map<String, Object?>> twins
 /// its line, otherwise null.
 String? _indentBefore(String source, int offset) {
   final lineStart = source.lastIndexOf('\n', offset - 1) + 1;
-  final before = source.substring(lineStart, offset);
+  final before = source.substring(lineStart, offset).replaceAll('\r', '');
   return before.trim().isEmpty ? before : null;
 }
 

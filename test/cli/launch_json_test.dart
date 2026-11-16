@@ -97,10 +97,57 @@ void main() {
     test('a file without configurations or with broken JSON is refused', () {
       expect(() => addTidyTwins('{"version": "0.2.0"}'), throwsA(isA<LaunchJsonException>()));
       expect(() => addTidyTwins('{"configurations": [{"name": "a"'), throwsA(isA<LaunchJsonException>()));
+      expect(() => addTidyTwins(r'{"\q": 1, "configurations": []}'), throwsA(isA<LaunchJsonException>()));
+    });
+  });
+
+  group('file styles', () {
+    test('a CRLF file stays CRLF and a rerun or remove keeps it intact', () {
+      final crlf = _withFlavors.replaceAll('\n', '\r\n');
+      final added = addTidyTwins(crlf).text;
+      expect(added.replaceAll('\r\n', ''), isNot(contains('\n')), reason: 'no bare LF line endings');
+      expect(removeTidyTwins(added).text, crlf);
+    });
+
+    test('a tab-indented file gets tab-indented twins', () {
+      const tabs = '{\n\t"configurations": [\n\t\t{\n\t\t\t"name": "a",\n\t\t\t"type": "dart"\n\t\t}\n\t]\n}\n';
+      final added = addTidyTwins(tabs).text;
+      expect(added, contains('\t\t\t"name": "a (tidy logs)"'));
+      expect(added, isNot(contains(' "name"')));
+      expect(removeTidyTwins(added).text, tabs);
     });
   });
 
   group('removeTidyTwins', () {
+    test('keeps comments next to a twin the user moved or annotated', () {
+      const moved = '''{
+  "configurations": [
+    {"name": "a", "type": "dart"},
+    // IMPORTANT: keep this note
+    {"name": "a (tidy logs)", "type": "dart", "customTool": "\${workspaceFolder}/.vscode/tidy_flutter"},
+    // about b
+    {"name": "b", "type": "dart"}
+  ]
+}
+''';
+      final removed = removeTidyTwins(moved).text;
+      expect(removed, contains('// IMPORTANT: keep this note'));
+      expect(removed, contains('// about b'));
+      expect(configs(removed).map((c) => c['name']), ['a', 'b']);
+    });
+
+    test('a file setup created from scratch is reported as empty after remove', () {
+      final created = addTidyTwins(null).text;
+      expect(removeTidyTwins(created).leftEmpty, isTrue);
+      expect(removeTidyTwins(_withFlavors).leftEmpty, isFalse);
+    });
+
+    test('only configs that point exactly at the setup launcher are ours', () {
+      const lookalike =
+          '{"configurations": [{"name": "x", "type": "dart", "customTool": "\${workspaceFolder}/.vscode/tidy_flutter_old"}]}';
+      expect(removeTidyTwins(lookalike).changed, isFalse);
+    });
+
     test('restores the original file exactly', () {
       final added = addTidyTwins(_withFlavors).text;
       final removed = removeTidyTwins(added);
