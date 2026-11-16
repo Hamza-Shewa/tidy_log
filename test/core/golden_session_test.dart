@@ -7,7 +7,7 @@ import 'package:tidy_log/src/core.dart';
 /// user IDs replaced) must clean up to the reviewed plain output.
 ///
 /// To update after an intended change, regenerate the expected file with
-/// `dart run bin/tidy_flutter.dart rewrite --plain` from a folder whose
+/// `dart run tidy_log rewrite --plain` from a folder whose
 /// tidy_log.yaml lists `project_packages: [app, core_kit]`, then review
 /// the diff.
 void main() {

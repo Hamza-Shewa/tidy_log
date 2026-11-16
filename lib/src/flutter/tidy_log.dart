@@ -11,7 +11,7 @@ typedef LinePrinter = void Function(String line);
 /// The app-facing logger.
 ///
 /// Every line it prints starts with an ANSI reset when colours are on. The
-/// `tidy_flutter` wrapper uses that marker to pass these lines through
+/// `tidy_log` runner uses that marker to pass these lines through
 /// untouched instead of restyling them a second time.
 abstract final class TidyLog {
   static var _projectPackages = const <String>['app'];

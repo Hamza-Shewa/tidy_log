@@ -7,17 +7,21 @@ import '../core/console/pipeline.dart';
 import 'output_router.dart';
 
 const _usage = '''
-tidy_flutter: runs `flutter` and cleans up its log output.
+tidy_log: runs `flutter` and cleans up its log output.
 
-Use it as Dart-Code's customTool (see README), or:
-  tidy_flutter run -d <device>     same as flutter run, with tidy output
-  tidy_flutter rewrite [--plain]   clean a saved log read from stdin
+  dart run tidy_log run -d <device>      same as `flutter run`, with tidy output
+  dart run tidy_log attach -d <device>   same as `flutter attach`
+  dart run tidy_log rewrite [--plain]    clean a saved log read from stdin
+  dart run tidy_log:setup                set up VS Code (see --help)
+  dart run tidy_log:setup --sdk          set up Android Studio / IntelliJ
 
-The real flutter comes from TIDY_FLUTTER_BIN, FLUTTER_ROOT or PATH.''';
+Every other argument goes to flutter unchanged. The real flutter comes
+from TIDY_FLUTTER_BIN, FLUTTER_ROOT or PATH.''';
 
-/// Entry point of `bin/tidy_flutter.dart`. Returns the exit code.
+/// Entry point of `bin/tidy_log.dart` (`dart run tidy_log …`). Returns the
+/// exit code.
 Future<int> runWrapper(List<String> args) async {
-  if (args.isEmpty || args.first == '--tidy-help') {
+  if (args.isEmpty || args.first == '--tidy-help' || args.first == '--help' && args.length == 1) {
     stdout.writeln(_usage);
     return 0;
   }
@@ -26,7 +30,7 @@ Future<int> runWrapper(List<String> args) async {
 
   final flutter = findFlutter();
   if (flutter == null) {
-    stderr.writeln('tidy_flutter: could not find the real flutter. Set TIDY_FLUTTER_BIN or FLUTTER_ROOT.');
+    stderr.writeln('tidy_log: could not find the real flutter. Set TIDY_FLUTTER_BIN or FLUTTER_ROOT.');
     return 127;
   }
   return _run(flutter, args, config);
@@ -60,6 +64,9 @@ String? findFlutter({Map<String, String>? environment}) {
 }
 
 Future<int> _rewrite(TidyConfig config, {required bool plain}) async {
+  // `… | dart run tidy_log rewrite | head` closes our stdout early. Stop
+  // quietly instead of dying with a "Broken pipe" stack trace.
+  unawaited(stdout.done.catchError((Object _) => exit(0)));
   final pipeline = ConsolePipeline(plain ? _withoutColor(config) : config);
   final router = OutputRouter(pipeline: pipeline, styled: stdout.writeln);
   await for (final line in stdin.transform(const Utf8Decoder(allowMalformed: true)).transform(const LineSplitter())) {

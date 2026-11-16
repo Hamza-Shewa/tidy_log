@@ -1,5 +1,5 @@
 /// Pure-Dart core of tidy_log: styled entries, the stack trimmer and the
-/// logcat cleaner pipeline used by the `tidy_flutter` wrapper.
+/// logcat cleaner pipeline used by the `tidy_log` runner (`dart run tidy_log`).
 library;
 
 export 'core/console/config.dart' show LabelRule, Preset, TidyConfig, quietMessages, quietTags;

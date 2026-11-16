@@ -6,7 +6,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 dart pub get >/dev/null
 mkdir -p "$root/build"
-dart compile exe bin/tidy_flutter.dart -o "$root/build/tidy_flutter"
+dart compile exe bin/tidy_log.dart -o "$root/build/tidy_flutter"
 echo
 echo "Wrapper ready: $root/build/tidy_flutter"
 echo "Use it as \"customTool\" in .vscode/launch.json (see README)."

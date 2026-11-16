@@ -21,4 +21,4 @@ dev_dependencies:
     sdk: flutter
 
 executables:
-  tidy_flutter:
+  tidy_log:
