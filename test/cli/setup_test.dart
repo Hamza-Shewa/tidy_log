@@ -56,8 +56,13 @@ void main() {
     expect(files['.vscode/launch.json'], contains('// mine'));
     expect(out.toString(), contains("TidyLog.configure(projectPackages: ['my_app'])"));
     if (!Platform.isWindows) {
-      final mode = Process.runSync('stat', ['-f', '%Lp', '${dir.path}/.vscode/tidy_flutter']).stdout.toString().trim();
-      expect(int.parse(mode[0]) & 1, 1, reason: 'the owner must be able to execute the launcher (mode $mode)');
+      // Not `stat -f %Lp`: that is BSD syntax, and GNU stat on Linux reads
+      // `-f` as "file system status".
+      expect(
+        ownerCanExecute('${dir.path}/.vscode/tidy_flutter'),
+        isTrue,
+        reason: 'the owner must be able to execute the launcher',
+      );
     }
   });
 
