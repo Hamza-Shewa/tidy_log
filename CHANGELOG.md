@@ -1,3 +1,13 @@
+## 0.2.2
+
+### Changed
+
+- `dart run tidy_log:setup` puts the `(tidy logs)` launch configs first in `.vscode/launch.json`, so VS Code picks a tidy launch by default. Running it again in a project set up by 0.2.1 or earlier moves the existing tidy configs to the top, text unchanged. `--remove` still restores the file exactly.
+
+### Fixed
+
+- Build, layout and paint errors (a missing `Material`, a `RenderFlex` overflow) now point at the nearest widget created in your code. The location used to come from the stack, which has no frame of yours for these errors, so it showed a framework file. tidy_log now walks up from the failing element instead, skipping the pub cache and the Flutter SDK, on every supported Flutter version.
+
 ## 0.2.1
 
 0.2.0 could print some secrets unmasked: values with spaces, commas or `&` in them, URL-encoded query values, values nested in bodies, coloured lines from other loggers, and the repeated `thrown again` error line. Upgrading is recommended.
