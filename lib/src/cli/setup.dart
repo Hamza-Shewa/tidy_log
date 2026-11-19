@@ -11,9 +11,9 @@ const setupUsage = '''
 dart run tidy_log:setup [options]
 
 VS Code (default): writes .vscode/tidy_flutter (and .bat) and adds a
-"<name> (tidy logs)" copy of each Flutter run or attach config in
-.vscode/launch.json (test configs get none). Your own configs and comments
-are left as they are.
+"<name> (tidy logs)" copy of each Flutter run or attach config at the top of
+.vscode/launch.json, so VS Code picks one by default (test configs get
+none). Your own configs and comments are left as they are.
 
   --remove              undo: delete the tidy configs and launcher scripts
                         (ones you have edited are kept)
@@ -85,6 +85,7 @@ SetupPlan planProjectSetup(Directory project, {bool remove = false}) {
     }
     notes.addAll([
       for (final name in edit.added) 'added launch config "$name"',
+      for (final name in edit.moved) 'moved launch config "$name" to the top, so VS Code picks it by default',
       for (final name in edit.removed) 'removed launch config "$name"',
       for (final reason in edit.skipped) 'left as is: $reason',
       ...edit.notes,
@@ -327,7 +328,9 @@ int runSetup(List<String> args, {Directory? project, IOSink? out, IOSink? err, M
 
   sink.writeln('''
 
-Done. In VS Code, open Run and Debug, pick a "(tidy logs)" config and press F5.
+Done. In VS Code, press F5: the "(tidy logs)" configs come first, so one is
+picked by default. VS Code remembers your last pick, so if you used another
+config before, choose a "(tidy logs)" one once in Run and Debug.
 Commit .vscode/tidy_flutter, .vscode/tidy_flutter.bat and .vscode/launch.json
 so your team gets it too. Undo with: dart run tidy_log:setup --remove
 

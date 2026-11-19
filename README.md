@@ -88,7 +88,7 @@ ERR Error refreshing session: unvalid api sign .....en-US
 ### What `dart run tidy_log:setup` does (VS Code)
 
 - It writes `.vscode/tidy_flutter` and `.vscode/tidy_flutter.bat`. These are small launchers that start `dart run tidy_log` with the first Flutter SDK they find: `FLUTTER_ROOT` (VS Code sets it to the SDK the Dart extension uses), then `.fvm/flutter_sdk` next to `.vscode` (fvm), then `flutter` on `PATH`. Until `flutter pub get` has run, they fall back to plain flutter, so a fresh clone always launches.
-- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, except test configs, or creates the file. Setup only adds text after your last config, so your own configs and comments stay as they are.
+- It adds a `<name> (tidy logs)` copy of every Dart config in `.vscode/launch.json`, except test configs, or creates the file. The copies go first in the list, so a new checkout starts with a tidy launch selected (VS Code remembers the config you last picked, so pick one once if you used another before). Setup only inserts text at the top of the list, so your own configs and comments stay as they are. Running it again in a project set up by 0.2.1 or earlier moves the existing copies to the top.
 - It prints an optional `main.dart` snippet that uses your app's package name.
 
 Commit the three files so your team gets them. `--dry-run` shows the changes first, and `--remove` takes out only what setup added.

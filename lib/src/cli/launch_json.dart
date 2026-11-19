@@ -29,6 +29,7 @@ final class LaunchEdit {
     this.skipped = const [],
     this.notes = const [],
     this.kept = const [],
+    this.moved = const [],
     this.leftEmpty = false,
   });
 
@@ -47,7 +48,11 @@ final class LaunchEdit {
   /// were changed after setup added them. They still use the launchers.
   final List<String> kept;
 
-  bool get changed => added.isNotEmpty || removed.isNotEmpty;
+  /// Tidy configs that were already there and were moved to the top (set up
+  /// by a version that put them last).
+  final List<String> moved;
+
+  bool get changed => added.isNotEmpty || removed.isNotEmpty || moved.isNotEmpty;
 
   /// After a removal: the file is back to the empty file setup creates from
   /// scratch (no other configs, no comments), so it can be deleted.
@@ -71,9 +76,11 @@ final class LaunchJsonException implements Exception {
 /// `lib/`) get none: tidy_log only tidies `flutter run` and `attach`. When
 /// two configs share a name, the second twin is `<name> (tidy logs 2)`.
 ///
-/// The twins are inserted as text after the last config, so comments and
-/// formatting elsewhere in the file stay byte for byte. Running it again
-/// adds nothing.
+/// The tidy configs go first in the list, so VS Code picks a tidy launch by
+/// default. They are inserted as text right after `"configurations": [`, so
+/// comments and formatting elsewhere stay byte for byte. Tidy configs that
+/// are already there but not first (earlier versions put them last) are
+/// moved up, text unchanged. Running it again changes nothing.
 LaunchEdit addTidyTwins(String? source) {
   try {
     return _addTidyTwins(source);
@@ -122,11 +129,53 @@ LaunchEdit _addTidyTwins(String? source) {
   }
   final fallback = defaultTidyConfig();
   if (twins.isEmpty && !configs.any(isTidyConfig) && !names.contains(fallback['name'])) twins.add(fallback);
-  if (twins.isEmpty) return LaunchEdit(source, skipped: skipped);
 
+  // The tidy configs in the order they should open the list: each in the
+  // place of the config it mirrors, then any others (the default config, a
+  // renamed one) in their current order.
+  final existing = [
+    for (var i = 0; i < configs.length; i++)
+      if (isTidyConfig(configs[i]))
+        (index: i, name: _name(configs[i]), text: source.substring(array.elements[i].start, array.elements[i].end)),
+  ];
+  final encoder = JsonEncoder.withIndent(_indentStep(source, array));
+  final front = <({String name, String? text, Map<String, Object?>? config})>[
+    for (final (_, twinName) in _sources(configs))
+      if (existing.where((e) => e.name == twinName).firstOrNull case final e?)
+        (name: e.name, text: e.text, config: null)
+      else if (twins.where((t) => t['name'] == twinName).firstOrNull case final t?)
+        (name: twinName, text: null, config: t),
+  ];
+  for (final e in existing) {
+    if (!front.any((f) => f.name == e.name)) front.add((name: e.name, text: e.text, config: null));
+  }
+  for (final t in twins) {
+    if (!front.any((f) => f.name == t['name'])) front.add((name: t['name']! as String, text: null, config: t));
+  }
+
+  // A tidy config moves when it does not already sit where it belongs.
+  final moved = [
+    for (final e in existing)
+      if (front.indexWhere((f) => f.name == e.name) != e.index) e.name,
+  ];
+  if (twins.isEmpty && moved.isEmpty) return LaunchEdit(source, skipped: skipped);
+
+  // Take the existing tidy configs out, then put every tidy config first.
+  var text = source;
+  while (true) {
+    final current = _findConfigurations(text);
+    final index = current.elements.indexWhere((e) => isTidyConfig(_decode(text.substring(e.start, e.end))));
+    if (index < 0) break;
+    text = _removeElement(text, current.elements, index);
+  }
+  final blocks = [
+    for (final f in front)
+      if (f.text case final text?) (text: text, encoded: false) else (text: encoder.convert(f.config), encoded: true),
+  ];
   return LaunchEdit(
-    _insert(source, array, twins),
+    _insertFirst(text, _findConfigurations(text), blocks),
     added: [for (final t in twins) t['name']! as String],
+    moved: moved,
     skipped: skipped,
     notes: notes,
   );
@@ -303,29 +352,38 @@ Map<String, Object?> _twin(Map<String, Object?> config, String name, {bool repla
   };
 }
 
-String _insert(String source, _ArrayInfo array, List<Map<String, Object?>> twins) {
-  final nl = source.contains('\r\n') ? '\r\n' : '\n';
-  final closeIndent = _indentBefore(source, array.close) ?? '  ';
-  final unit = closeIndent.contains('\t') ? '\t' : '  ';
-  final elementIndent = array.elements.isEmpty
-      ? '$closeIndent$unit'
-      : (_indentBefore(source, array.elements.first.start) ?? '$closeIndent$unit');
-  // The file's own indent step (tabs or n spaces), so twins look like the rest.
-  final step = elementIndent.length > closeIndent.length && elementIndent.startsWith(closeIndent)
-      ? elementIndent.substring(closeIndent.length)
-      : unit;
-  final encoder = JsonEncoder.withIndent(step);
-  final blocks = [for (final t in twins) encoder.convert(t).replaceAll('\n', '$nl$elementIndent')];
+/// The file's own indentation: the closing bracket's indent, and the indent
+/// of an element of the configurations list.
+({String close, String element}) _indents(String source, _ArrayInfo array) {
+  final close = _indentBefore(source, array.close) ?? '  ';
+  final unit = close.contains('\t') ? '\t' : '  ';
+  final element = array.elements.isEmpty
+      ? '$close$unit'
+      : (_indentBefore(source, array.elements.first.start) ?? '$close$unit');
+  return (close: close, element: element);
+}
 
-  if (array.elements.isEmpty) {
-    final text = '$nl$elementIndent${blocks.join(',$nl$elementIndent')}$nl$closeIndent';
-    return source.replaceRange(array.open + 1, array.open + 1, text);
-  }
-  final last = array.elements.last;
-  final at = array.trailingComma ? last.commaEnd : last.end;
-  final text =
-      '${array.trailingComma ? '' : ','}$nl$elementIndent${blocks.join(',$nl$elementIndent')}${array.trailingComma ? ',' : ''}';
-  return source.replaceRange(at, at, text);
+/// The file's own indent step (tabs or n spaces), so new configs look like
+/// the rest.
+String _indentStep(String source, _ArrayInfo array) {
+  final (:close, :element) = _indents(source, array);
+  return element.length > close.length && element.startsWith(close)
+      ? element.substring(close.length)
+      : (close.contains('\t') ? '\t' : '  ');
+}
+
+/// Inserts [blocks] as the first elements of the configurations list, right
+/// after its `[`. A block is either text cut from the file (already indented
+/// for this list) or a newly encoded config (`\n` line breaks, no outer
+/// indent), which gets the file's line breaks and indent.
+String _insertFirst(String source, _ArrayInfo array, List<({String text, bool encoded})> blocks) {
+  final nl = source.contains('\r\n') ? '\r\n' : '\n';
+  final (:close, :element) = _indents(source, array);
+  final body = [
+    for (final b in blocks) b.encoded ? b.text.replaceAll('\n', '$nl$element') : b.text,
+  ].join(',$nl$element');
+  final text = array.elements.isEmpty ? '$nl$element$body$nl$close' : '$nl$element$body,';
+  return source.replaceRange(array.open + 1, array.open + 1, text);
 }
 
 /// The whitespace before [offset] when [offset] is the first character on

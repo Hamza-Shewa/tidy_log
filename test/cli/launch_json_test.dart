@@ -60,22 +60,30 @@ void main() {
       expect(dev['program'], 'lib/main_dev.dart');
       expect(dev['args'], ['--flavor', 'dev', '--dart-define=URL=https://dev.example.test']);
       expect(dev['customTool'], r'${workspaceFolder}/.vscode/tidy_flutter');
+      // First, so VS Code picks a tidy launch by default.
       expect(configs(edit.text).map((c) => c['name']), [
+        'dev (tidy logs)',
+        'attach (tidy logs)',
         'dev',
         'attach',
         'Chrome',
-        'dev (tidy logs)',
-        'attach (tidy logs)',
       ]);
     });
 
     test('the original text is kept byte for byte, comments included', () {
       final edit = addTidyTwins(_withFlavors);
-      final insertAt = _withFlavors.lastIndexOf('}', _withFlavors.lastIndexOf(']')) + 2; // after "},"
+      final insertAt = _withFlavors.indexOf('[') + 1; // right after "configurations": [
       expect(edit.text.substring(0, insertAt), _withFlavors.substring(0, insertAt));
       expect(edit.text, endsWith(_withFlavors.substring(insertAt)));
       expect(edit.text, contains('// the usual one'));
       expect(edit.text, contains('/* attach to a running app */'));
+    });
+
+    test('a comment above the first config stays with that config', () {
+      const commented = '{\n  "configurations": [\n    // main app\n    {"name": "a", "type": "dart"}\n  ]\n}\n';
+      final text = addTidyTwins(commented).text;
+      expect(text, contains('// main app\n    {"name": "a", "type": "dart"}'));
+      expect(text.indexOf('a (tidy logs)'), lessThan(text.indexOf('// main app')));
     });
 
     test('running it again changes nothing', () {
@@ -94,7 +102,7 @@ void main() {
 
     test('works without a trailing comma and in an empty list', () {
       final plain = addTidyTwins('{"configurations": [{"name": "a", "type": "dart", "request": "launch"}]}');
-      expect(configs(plain.text).map((c) => c['name']), ['a', 'a (tidy logs)']);
+      expect(configs(plain.text).map((c) => c['name']), ['a (tidy logs)', 'a']);
       final empty = addTidyTwins('{\n  "configurations": []\n}\n');
       expect(configs(empty.text).single['name'], 'Flutter (tidy logs)');
     });
@@ -103,6 +111,65 @@ void main() {
       expect(() => addTidyTwins('{"version": "0.2.0"}'), throwsA(isA<LaunchJsonException>()));
       expect(() => addTidyTwins('{"configurations": [{"name": "a"'), throwsA(isA<LaunchJsonException>()));
       expect(() => addTidyTwins(r'{"\q": 1, "configurations": []}'), throwsA(isA<LaunchJsonException>()));
+    });
+  });
+
+  group('tidy configs go first (the VS Code default)', () {
+    /// What versions up to 0.2.1 wrote: the twins after the last config.
+    const setUpBefore = '''
+{
+  "configurations": [
+    {"name": "a", "type": "dart"},
+    {"name": "b", "type": "dart"},
+    {"name": "a (tidy logs)", "type": "dart", "customTool": "\${workspaceFolder}/.vscode/tidy_flutter", "customToolReplacesArgs": 0, "windows": {"customTool": "\${workspaceFolder}\\\\.vscode\\\\tidy_flutter.bat"}},
+    {"name": "b (tidy logs)", "type": "dart", "customTool": "\${workspaceFolder}/.vscode/tidy_flutter", "customToolReplacesArgs": 0, "windows": {"customTool": "\${workspaceFolder}\\\\.vscode\\\\tidy_flutter.bat"}}
+  ]
+}
+''';
+
+    test('a file set up by an earlier version gets its tidy configs moved up, text unchanged', () {
+      final edit = addTidyTwins(setUpBefore);
+
+      expect(edit.added, isEmpty);
+      expect(edit.moved, ['a (tidy logs)', 'b (tidy logs)']);
+      expect(edit.changed, isTrue);
+      expect(configs(edit.text).map((c) => c['name']), ['a (tidy logs)', 'b (tidy logs)', 'a', 'b']);
+      for (final line in setUpBefore.split('\n').where((l) => l.contains('(tidy logs)'))) {
+        expect(edit.text, contains(line.trim().replaceFirst(RegExp(r',$'), '')), reason: 'moved as written');
+      }
+    });
+
+    test('after the move a rerun changes nothing and --remove still cleans up', () {
+      final moved = addTidyTwins(setUpBefore).text;
+
+      expect(addTidyTwins(moved).changed, isFalse);
+      expect(configs(removeTidyTwins(moved).text).map((c) => c['name']), ['a', 'b']);
+    });
+
+    test('a new twin joins the existing ones in the order of their configs', () {
+      final onlyA = addTidyTwins('{"configurations": [{"name": "a", "type": "dart"}]}').text;
+      final withB = onlyA.replaceFirst(
+        '{"name": "a", "type": "dart"}',
+        '{"name": "a", "type": "dart"},\n{"name": "b", "type": "dart"}',
+      );
+
+      final edit = addTidyTwins(withB);
+
+      expect(edit.added, ['b (tidy logs)']);
+      expect(edit.moved, isEmpty, reason: '"a (tidy logs)" was already first');
+      expect(configs(edit.text).map((c) => c['name']), ['a (tidy logs)', 'b (tidy logs)', 'a', 'b']);
+    });
+
+    test('an edited tidy config moves up too, kept as the user wrote it', () {
+      final edited = setUpBefore.replaceFirst(
+        '"name": "b (tidy logs)", "type": "dart",',
+        '"name": "b (tidy logs)", "type": "dart", "deviceId": "x",',
+      );
+
+      final names = configs(addTidyTwins(edited).text).map((c) => c['name']);
+
+      expect(names.take(2), ['a (tidy logs)', 'b (tidy logs)']);
+      expect(configs(addTidyTwins(edited).text)[1]['deviceId'], 'x');
     });
   });
 
@@ -230,7 +297,7 @@ void main() {
       const own =
           '{"configurations": [{"name": "a", "type": "dart", "windows": {"customTool": "C:\\\\fvm\\\\flutter.bat"}}]}';
       final edit = addTidyTwins(own);
-      final twin = configs(edit.text).last;
+      final twin = configs(edit.text).first;
       expect(twin['customTool'], tidyToolFields['customTool']);
       expect(twin['windows'], {'customTool': r'C:\fvm\flutter.bat'});
       expect(edit.notes.single, contains(r'"a (tidy logs)" keeps its own windows.customTool (C:\fvm\flutter.bat)'));
@@ -251,7 +318,7 @@ void main() {
       expect(removed.removed, ['dev (tidy logs)']);
       expect(removed.kept, ['attach (tidy logs)']);
       expect(removed.skipped.single, startsWith('attach (tidy logs): changed since setup added it'));
-      expect(configs(removed.text).map((c) => c['name']), ['dev', 'attach', 'Chrome', 'attach (tidy logs)']);
+      expect(configs(removed.text).map((c) => c['name']), ['attach (tidy logs)', 'dev', 'attach', 'Chrome']);
     });
 
     test('a twin written by an earlier version, which replaced windows.customTool, is still removed', () {
