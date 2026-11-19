@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:stack_trace/stack_trace.dart';
 import '../core.dart';
 
@@ -8,6 +8,23 @@ import 'error_text.dart';
 import 'tidy_log.dart';
 
 final _sourceLocation = RegExp(r'((?:package:|file://)\S+?\.dart):(\d+):(\d+)');
+
+/// Folders that hold dependencies and SDKs, never your own code: the pub
+/// cache (`.pub-cache`, Windows `Pub/Cache`), the Flutter SDK packages (also
+/// under FVM) and the engine's `bin/cache`.
+final _outsideProject = RegExp(r'/(?:\.pub-cache|pub/cache|bin/cache|\.dart_tool)/|/packages/flutter\w*/lib/');
+
+/// Whether [file], a widget's creation location (`file:///…` or
+/// `package:…`), is your own source rather than a dependency or the SDK.
+@visibleForTesting
+bool isProjectSourceFile(String file, {List<String> projectPackages = const []}) {
+  final uri = Uri.tryParse(file);
+  if (uri == null) return false;
+  if (uri.scheme == 'package') {
+    return uri.pathSegments.isNotEmpty && projectPackages.contains(uri.pathSegments.first);
+  }
+  return !_outsideProject.hasMatch(uri.path.replaceAll(r'\', '/').toLowerCase());
+}
 
 /// Formats [FlutterErrorDetails] in the tidy layout.
 ///
@@ -64,7 +81,7 @@ final class FlutterErrorFormatter {
         : trimStack(Trace.from(details.stack!), projectPackages: packages);
     // The widget location and the context are extras: if building them
     // throws, the error is still printed without them.
-    final widget = _orNull(() => _widgetLocation(details, packages.first));
+    final widget = _orNull(() => _widgetLocation(details, packages));
     if (widget != null && !stack.inProject) {
       stack = TrimmedStack(location: widget, trail: stack.trail, hidden: stack.hidden);
     }
@@ -114,15 +131,61 @@ final class FlutterErrorFormatter {
     );
   }
 
-  /// The "relevant error-causing widget" location Flutter adds in debug mode.
-  static FrameRef? _widgetLocation(FlutterErrorDetails details, String appPackage) {
-    final info = details.informationCollector?.call() ?? const <DiagnosticsNode>[];
+  /// Where in your code the failing widget was created, for errors whose
+  /// stack has no frame of yours (build, layout and paint errors).
+  static FrameRef? _widgetLocation(FlutterErrorDetails details, List<String> packages) {
+    final info = details.informationCollector?.call().toList() ?? const <DiagnosticsNode>[];
+    return _nearestProjectWidget(info, packages) ?? _describedWidget(info, packages);
+  }
+
+  /// Debug builds attach the failing element as a [DebugCreator]. Flutter's
+  /// own "relevant error-causing widget" text is only derived from it later,
+  /// and without the IDE's project folders it names any widget outside
+  /// `package:flutter` (a pub-cache widget, for instance). So walk up from
+  /// the element to the nearest widget created in your own code.
+  static FrameRef? _nearestProjectWidget(List<DiagnosticsNode> info, List<String> packages) {
+    for (final node in info) {
+      final creator = node.value;
+      if (creator is! DebugCreator) continue;
+      final found = _orNull(() {
+        FrameRef? hit;
+        var visited = 0;
+        bool visit(Element element) {
+          hit = _projectCreation(element.widget, packages);
+          return hit == null && ++visited < 500;
+        }
+
+        if (visit(creator.element)) creator.element.visitAncestorElements(visit);
+        return hit;
+      });
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  /// [widget]'s creation location when it is in your code. Read through the
+  /// inspector's serializer: `CreationLocation.of` only exists from Flutter
+  /// 3.50 on, and the serializer works on every supported version.
+  static FrameRef? _projectCreation(Widget widget, List<String> packages) {
+    // ignore: invalid_use_of_visible_for_testing_member
+    final delegate = InspectorSerializationDelegate(service: WidgetInspectorService.instance, subtreeDepth: 0);
+    final location = widget.toDiagnosticsNode().toJsonMap(delegate)['creationLocation'];
+    if (location is! Map) return null;
+    final file = location['file'];
+    if (file is! String || !isProjectSourceFile(file, projectPackages: packages)) return null;
+    final path = displayPath(Uri.parse(file), appPackage: packages.first);
+    return FrameRef('$path:${location['line']}:${location['column']}', widget.runtimeType.toString());
+  }
+
+  /// Fallback for errors that already carry the "relevant error-causing
+  /// widget" text. Only used when that widget is in your own code.
+  static FrameRef? _describedWidget(List<DiagnosticsNode> info, List<String> packages) {
     final text = info.map((n) => n.toStringDeep()).join('\n');
     final start = text.indexOf('relevant error-causing widget');
     if (start < 0) return null;
     final after = text.substring(start);
     final match = _sourceLocation.firstMatch(after);
-    if (match == null) return null;
+    if (match == null || !isProjectSourceFile(match[1]!, projectPackages: packages)) return null;
     final widget = after
         .split('\n')
         .skip(1)
@@ -130,7 +193,7 @@ final class FlutterErrorFormatter {
         .trim()
         .split(' ')
         .first;
-    final path = displayPath(Uri.parse(match[1]!), appPackage: appPackage);
+    final path = displayPath(Uri.parse(match[1]!), appPackage: packages.first);
     return FrameRef('$path:${match[2]}:${match[3]}', widget);
   }
 }
